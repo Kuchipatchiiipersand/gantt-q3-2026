@@ -6,7 +6,7 @@
 <title>Q3 2026 Roadmap</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=20260703220000">
+<link rel="stylesheet" href="style.css?v=20260703230000">
 </head>
 <body>
 
@@ -25,7 +25,7 @@
       <div class="leg-item"><div class="leg-dot" style="background:#3B82F6"></div>Active</div>
       <div class="leg-item"><div class="leg-dot" style="background:#F43F5E"></div>Blocked</div>
       <div class="leg-item"><div class="leg-dot" style="background:#F59E0B"></div>Pending</div>
-      <div class="leg-item"><div class="leg-dot" style="background:#94A3B8"></div>Unscheduled</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#94A3B8"></div>Backlog</div>
     </div>
     <div class="header-divider"></div>
     <button class="btn-add" onclick="openModal()">
@@ -38,12 +38,17 @@
 <div class="toolbar">
   <div class="search-wrap">
     <span class="search-icon">⌕</span>
-    <input id="search" type="text" placeholder="Search initiatives..." oninput="renderGantt()">
+    <input id="search" type="text" placeholder="Search..." oninput="renderGantt()">
   </div>
   <div class="toolbar-sep"></div>
   <div class="select-wrap">
     <select id="filter-project" onchange="renderGantt()">
       <option value="">All Projects</option>
+    </select>
+  </div>
+  <div class="select-wrap">
+    <select id="filter-dev" onchange="renderGantt()">
+      <option value="">All Developers</option>
     </select>
   </div>
   <div class="select-wrap">
@@ -53,16 +58,12 @@
       <option value="done">Done</option>
       <option value="blocked">Blocked</option>
       <option value="pending">Pending</option>
-      <option value="unscheduled">Unscheduled</option>
+      <option value="unscheduled">Backlog</option>
     </select>
   </div>
-  <label class="toggle-label">
-    <input type="checkbox" id="hide-unscheduled" onchange="renderGantt()">
-    <span class="toggle-track"></span>
-    Hide unscheduled
-  </label>
   <div class="toolbar-sep"></div>
-  <button class="btn-manage-devs" onclick="openManageModal()">⚙ Manage</button>
+  <button class="btn-toolbar" onclick="openWorkloadModal()">📊 Workload</button>
+  <button class="btn-toolbar" onclick="openManageModal('projects')">⚙ Manage</button>
   <div class="toolbar-stats" id="toolbar-stats"></div>
 </div>
 
@@ -79,7 +80,6 @@
     </div>
     <div class="gh-cols">
       <div class="gh-label-group">
-        <div class="gh-col gh-col-team">Developer</div>
         <div class="gh-col gh-col-init">Initiative</div>
         <div class="gh-col gh-col-status">Status</div>
       </div>
@@ -130,13 +130,13 @@
           <input type="text" id="f-initiative" required placeholder="e.g. MyDebit TR31">
         </div>
         <div class="form-group">
-          <label>Outcome Statement <span class="label-hint">— what will this enable?</span></label>
+          <label>Outcome <span class="label-hint">— what will this enable?</span></label>
           <textarea id="f-outcome" rows="2" placeholder="Enable... so that..."></textarea>
         </div>
         <div class="form-grid">
           <div class="form-group">
             <label>Target Timeline</label>
-            <input type="text" id="f-target" placeholder="e.g. Jul 2026, Target 15 Jul">
+            <input type="text" id="f-target" placeholder="e.g. Jul 2026">
           </div>
           <div class="form-group">
             <label>Status</label>
@@ -145,7 +145,7 @@
               <option value="done">Done</option>
               <option value="blocked">Blocked</option>
               <option value="pending">Pending</option>
-              <option value="unscheduled">Unscheduled</option>
+              <option value="unscheduled">Backlog</option>
             </select>
           </div>
         </div>
@@ -160,14 +160,17 @@
       </div>
 
       <div class="form-section">
-        <div class="form-section-title">Timeline Bar</div>
+        <div class="form-section-title">Timeline Bar <span class="label-hint">(leave empty to add to Backlog)</span></div>
         <div class="bar-picker-label">
           <span class="bar-picker-hint">Drag to select weeks</span>
-          <span class="bar-picker-selection" id="bp-selection">No range selected</span>
+          <span class="bar-picker-selection" id="bp-selection">No range selected — will go to Backlog</span>
         </div>
         <div class="bar-month-labels" id="bar-month-labels"></div>
         <div class="bar-picker" id="bar-picker"></div>
         <div class="bar-week-labels" id="bar-labels"></div>
+        <div style="text-align:right;margin-top:6px">
+          <button type="button" class="btn-clear-bar" onclick="resetBarPicker()">Clear timeline</button>
+        </div>
         <input type="hidden" id="f-bar-start" value="-1">
         <input type="hidden" id="f-bar-end"   value="-1">
         <input type="hidden" id="f-bar-color" value="#4F46E5">
@@ -185,23 +188,19 @@
 <div class="modal-overlay" id="dev-modal" onclick="closeDevModalOutside(event)">
   <div class="modal modal-dev">
     <div class="modal-header">
-      <div>
-        <h2>Manage</h2>
-        <p>Add and remove projects and developers.</p>
-      </div>
+      <div><h2>Manage</h2><p>Configure projects and developers.</p></div>
       <button class="modal-close" onclick="closeDevModal()">✕</button>
     </div>
-
-    <!-- Tabs -->
     <div class="modal-tabs">
       <button class="modal-tab active" id="tab-btn-projects"   onclick="switchTab('projects')">Projects</button>
       <button class="modal-tab"        id="tab-btn-developers" onclick="switchTab('developers')">Developers</button>
     </div>
 
-    <!-- ── Projects Tab ── -->
+    <!-- Projects Tab -->
     <div class="modal-tab-content active" id="tab-projects">
       <div class="form-section">
-        <div class="form-section-title">Add Project</div>
+        <div class="form-section-title" id="proj-form-title">Add Project</div>
+        <input type="hidden" id="proj-editing-id">
         <div class="dev-add-row">
           <div class="form-group" style="flex:1.2;margin-bottom:0">
             <input type="text" id="proj-name" placeholder="Project name" onkeydown="projEnterKey(event)">
@@ -209,13 +208,16 @@
           <div class="form-group" style="flex:1;margin-bottom:0">
             <input type="text" id="proj-lead" placeholder="Lead (optional)">
           </div>
-          <button type="button" class="btn-primary" onclick="addProject()">Add</button>
+          <button type="button" class="btn-primary" id="proj-submit-btn" onclick="submitProject()">Add</button>
         </div>
         <div class="color-picker-row">
           <span class="color-picker-label">Color</span>
           <div class="color-swatches" id="proj-color-swatches"></div>
         </div>
         <div id="proj-add-error" class="dev-add-error" style="display:none"></div>
+        <div id="proj-cancel-edit" style="display:none;margin-top:8px;text-align:right">
+          <button type="button" class="btn-secondary" onclick="cancelProjectEdit()" style="font-size:12px;padding:5px 12px">Cancel edit</button>
+        </div>
       </div>
       <div class="form-section" style="margin-bottom:0">
         <div class="form-section-title">Current Projects</div>
@@ -223,29 +225,41 @@
       </div>
     </div>
 
-    <!-- ── Developers Tab ── -->
+    <!-- Developers Tab -->
     <div class="modal-tab-content" id="tab-developers">
       <div class="form-section">
-        <div class="form-section-title">Add Developer</div>
+        <div class="form-section-title" id="dev-form-title">Add Developer</div>
+        <input type="hidden" id="dev-editing-id">
         <div class="dev-add-row">
           <div class="form-group" style="flex:1;margin-bottom:0">
             <input type="text" id="dev-name" placeholder="Developer name" onkeydown="devEnterKey(event)">
           </div>
           <div class="select-wrap" style="flex:1">
-            <select id="dev-project">
-              <option value="">Select project...</option>
-            </select>
+            <select id="dev-project"><option value="">Select project...</option></select>
           </div>
-          <button type="button" class="btn-primary" onclick="addDeveloper()">Add</button>
+          <button type="button" class="btn-primary" id="dev-submit-btn" onclick="submitDeveloper()">Add</button>
         </div>
         <div id="dev-add-error" class="dev-add-error" style="display:none"></div>
+        <div id="dev-cancel-edit" style="display:none;margin-top:8px;text-align:right">
+          <button type="button" class="btn-secondary" onclick="cancelDevEdit()" style="font-size:12px;padding:5px 12px">Cancel edit</button>
+        </div>
       </div>
       <div class="form-section" style="margin-bottom:0">
         <div class="form-section-title">Current Developers</div>
         <div id="dev-list" class="dev-list"></div>
       </div>
     </div>
+  </div>
+</div>
 
+<!-- ── Workload Modal ── -->
+<div class="modal-overlay" id="workload-modal" onclick="closeWorkloadOutside(event)">
+  <div class="modal modal-workload">
+    <div class="modal-header">
+      <div><h2>Developer Workload</h2><p id="workload-week-label"></p></div>
+      <button class="modal-close" onclick="closeWorkloadModal()">✕</button>
+    </div>
+    <div id="workload-body" class="workload-grid"></div>
   </div>
 </div>
 
@@ -253,13 +267,10 @@
 <div class="modal-overlay" id="delete-modal" onclick="closeDeleteOutside(event)">
   <div class="modal modal-sm">
     <div class="modal-header">
-      <div>
-        <h2>Delete Initiative</h2>
-        <p>This action cannot be undone.</p>
-      </div>
+      <div><h2>Delete Initiative</h2><p>This action cannot be undone.</p></div>
       <button class="modal-close" onclick="closeDelete()">✕</button>
     </div>
-    <div style="padding: 16px 0;">
+    <div style="padding:16px 0">
       <div class="delete-icon">🗑️</div>
       <p class="delete-msg" id="delete-msg"></p>
       <p class="delete-sub">This will permanently remove the initiative and its timeline data.</p>
@@ -271,6 +282,6 @@
   </div>
 </div>
 
-<script src="app.js?v=20260703220000"></script>
+<script src="app.js?v=20260703230000"></script>
 </body>
 </html>

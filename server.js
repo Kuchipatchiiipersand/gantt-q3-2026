@@ -230,6 +230,28 @@ app.post('/api/teams', async (req, res) => {
   }
 });
 
+app.put('/api/teams/:id', async (req, res) => {
+  try {
+    const { name, owner = '', color = '#4F46E5' } = req.body;
+    if (!name) return res.status(400).json({ error: 'name is required' });
+    const existing = await db.get('SELECT * FROM teams WHERE id=$1', [req.params.id]);
+    if (!existing) return res.status(404).json({ error: 'Not found' });
+    const row = await db.get(
+      'UPDATE teams SET name=$1, owner=$2, color=$3 WHERE id=$4 RETURNING *',
+      [name.trim(), owner.trim(), color, req.params.id]
+    );
+    if (existing.name !== name.trim()) {
+      await db.run('UPDATE tasks SET team=$1 WHERE team=$2', [name.trim(), existing.name]);
+      await db.run('UPDATE developers SET project=$1 WHERE project=$2', [name.trim(), existing.name]);
+    }
+    res.json(row);
+  } catch(e) {
+    if (e.message?.includes('UNIQUE') || e.message?.includes('unique'))
+      return res.status(409).json({ error: 'A project with that name already exists' });
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.delete('/api/teams/:id', async (req, res) => {
   try {
     const team = await db.get('SELECT * FROM teams WHERE id=$1', [req.params.id]);
@@ -263,6 +285,18 @@ app.post('/api/developers', async (req, res) => {
     }
     res.status(500).json({ error: e.message });
   }
+});
+
+app.put('/api/developers/:id', async (req, res) => {
+  try {
+    const { name, project } = req.body;
+    if (!name || !project) return res.status(400).json({ error: 'name and project required' });
+    const row = await db.get(
+      'UPDATE developers SET name=$1, project=$2 WHERE id=$3 RETURNING *',
+      [name.trim(), project, req.params.id]
+    );
+    res.json(row);
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 app.delete('/api/developers/:id', async (req, res) => {

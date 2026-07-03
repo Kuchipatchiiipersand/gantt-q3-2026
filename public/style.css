@@ -6,8 +6,7 @@
   /* Spacing */
   --header-h: 60px;
   --toolbar-h: 52px;
-  --col-team: 120px;
-  --col-init: 250px;
+  --col-init: 370px;
   --col-status: 148px;
   --label-w: 518px;
   --week-w: 70px;
@@ -178,6 +177,15 @@ header h1 { font-size: 15px; font-weight: 700; color: #fff; letter-spacing: -.2p
 
 .toolbar-stats { margin-left: auto; font-size: 12px; color: var(--text-3); white-space: nowrap; }
 
+.btn-toolbar {
+  height: 34px; padding: 0 14px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--surface); color: var(--text-2);
+  font-size: 13px; font-weight: 500; font-family: inherit;
+  cursor: pointer; white-space: nowrap; transition: all .12s;
+}
+.btn-toolbar:hover { background: var(--bg); border-color: var(--border-2); color: var(--text); }
+
 /* ══════════════════════════════════════════════
    GANTT SCROLL CONTAINER
 ══════════════════════════════════════════════ */
@@ -241,8 +249,7 @@ header h1 { font-size: 15px; font-weight: 700; color: #fff; letter-spacing: -.2p
   height: 34px;
 }
 .gh-col:last-child { border-right: none; }
-.gh-col-team   { width: var(--col-team); }
-.gh-col-init   { flex: 1; }
+.gh-col-init   { flex: 1; padding-left: 20px; }
 .gh-col-status { width: var(--col-status); }
 
 .gh-weeks { display: flex; flex: 1; }
@@ -295,22 +302,12 @@ header h1 { font-size: 15px; font-weight: 700; color: #fff; letter-spacing: -.2p
 .task-row:hover { background: #F8FAFC; }
 .task-row:hover .row-actions { opacity: 1; pointer-events: all; }
 
-/* Sticky left columns */
-.cell-team {
-  flex: 0 0 var(--col-team);
-  position: sticky; left: 0; z-index: 2;
-  background: inherit;
-  padding: 0 14px;
-  font-size: 11px; color: var(--text-3); font-weight: 500;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  border-right: 1px solid var(--border);
-  height: var(--row-h); display: flex; align-items: center;
-}
+/* Sticky left columns — no developer column; initiative is now at left:0 */
 .cell-init {
   flex: 0 0 var(--col-init);
-  position: sticky; left: var(--col-team); z-index: 2;
+  position: sticky; left: 0; z-index: 2;
   background: inherit;
-  padding: 0 12px;
+  padding: 0 12px 0 20px;
   font-size: 12px; font-weight: 500; color: var(--text);
   line-height: 1.35;
   border-right: 1px solid var(--border);
@@ -320,13 +317,38 @@ header h1 { font-size: 15px; font-weight: 700; color: #fff; letter-spacing: -.2p
 .cell-init-text { flex: 1; }
 .cell-status {
   flex: 0 0 var(--col-status);
-  position: sticky; left: calc(var(--col-team) + var(--col-init)); z-index: 2;
+  position: sticky; left: var(--col-init); z-index: 2;
   background: inherit;
   padding: 0 12px;
   border-right: 1px solid var(--border);
   display: flex; align-items: center;
   min-height: var(--row-h);
 }
+
+/* Developer sub-header row (sits between project header and task rows) */
+.dev-sub-header {
+  display: flex; align-items: center; gap: 10px;
+  height: 32px; padding: 0 12px 0 20px;
+  background: #FAFBFC;
+  border-bottom: 1px solid var(--border);
+  position: sticky; left: 0;
+}
+.dsh-avatar { width: 22px; height: 22px; font-size: 10px; flex-shrink: 0; }
+.dsh-name { font-size: 12px; font-weight: 600; color: var(--text-2); flex: 1; }
+.dev-sub-header.backlog-dev { background: #F8F9FA; }
+
+/* Backlog section header */
+.backlog-header {
+  display: flex; align-items: center; gap: 8px;
+  height: 36px; padding: 0 20px;
+  background: #F1F5F9;
+  border-top: 2px solid var(--border-2);
+  border-bottom: 1px solid var(--border);
+  position: sticky; left: 0;
+  font-size: 12px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .6px; color: var(--text-2);
+}
+.backlog-icon { font-size: 14px; }
 
 /* Row actions */
 .row-actions {
@@ -693,8 +715,90 @@ header h1 { font-size: 15px; font-weight: 700; color: #fff; letter-spacing: -.2p
 }
 .btn-manage-devs:hover { background: var(--bg); border-color: var(--border-2); color: var(--text); }
 
+/* Edit button in manage lists */
+.btn-icon.btn-edit-sm {
+  width: 24px; height: 24px; border-radius: var(--radius-sm);
+  border: 1px solid #C7D2FE; background: #EEF2FF;
+  color: #4338CA; font-size: 12px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .12s; flex-shrink: 0;
+}
+.btn-icon.btn-edit-sm:hover { background: #C7D2FE; }
+
+/* Clear bar button */
+.btn-clear-bar {
+  background: none; border: none; color: var(--text-3);
+  font-size: 11px; cursor: pointer; font-family: inherit;
+  text-decoration: underline; padding: 0;
+}
+.btn-clear-bar:hover { color: var(--text-2); }
+
+/* ══════════════════════════════════════════════
+   WORKLOAD MODAL
+══════════════════════════════════════════════ */
+.modal-workload { width: min(760px, 100%); max-height: 85vh; }
+
+.workload-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 14px;
+  max-height: calc(85vh - 130px);
+  overflow-y: auto;
+  padding: 2px 2px 4px;
+}
+
+.wl-card {
+  border: 1px solid var(--border); border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+.wl-card-header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 14px;
+  background: #F8FAFC;
+  border-bottom: 1px solid var(--border);
+}
+.wl-dev-name { font-size: 13px; font-weight: 700; color: var(--text); }
+.wl-dev-project { font-size: 11px; color: var(--text-3); margin-top: 1px; }
+.wl-summary { margin-left: auto; display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+
+.wl-badge {
+  font-size: 10px; font-weight: 600;
+  padding: 2px 7px; border-radius: 99px;
+}
+.wl-active   { background: #EFF6FF; color: #1D4ED8; border: 1px solid #BFDBFE; }
+.wl-upcoming { background: #F5F3FF; color: #5B21B6; border: 1px solid #DDD6FE; }
+.wl-backlog  { background: #F8FAFC; color: #64748B; border: 1px solid #E2E8F0; }
+.wl-done     { background: #F0FDF4; color: #15803D; border: 1px solid #BBF7D0; }
+
+.wl-section { padding: 10px 14px; border-bottom: 1px solid var(--border); }
+.wl-section:last-child { border-bottom: none; }
+.wl-section-title {
+  font-size: 11px; font-weight: 600; color: var(--text-2);
+  margin-bottom: 8px;
+}
+.wl-task {
+  display: flex; align-items: center; gap: 7px;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+.wl-task:last-child { border-bottom: none; padding-bottom: 0; }
+.wl-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+.wl-t-active   .wl-dot { background: #3B82F6; }
+.wl-t-upcoming .wl-dot { background: #8B5CF6; }
+.wl-t-backlog  .wl-dot { background: #94A3B8; }
+.wl-name { flex: 1; color: var(--text); }
+.wl-range { font-size: 10px; color: var(--text-3); white-space: nowrap; }
+.wl-idle { padding: 14px; font-size: 12px; color: var(--text-3); text-align: center; }
+
 /* Scrollbar */
-.gantt-outer::-webkit-scrollbar { width: 6px; height: 6px; }
-.gantt-outer::-webkit-scrollbar-track { background: transparent; }
-.gantt-outer::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 99px; }
-.gantt-outer::-webkit-scrollbar-thumb:hover { background: var(--text-3); }
+.gantt-outer::-webkit-scrollbar,
+.workload-grid::-webkit-scrollbar { width: 6px; height: 6px; }
+.gantt-outer::-webkit-scrollbar-track,
+.workload-grid::-webkit-scrollbar-track { background: transparent; }
+.gantt-outer::-webkit-scrollbar-thumb,
+.workload-grid::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 99px; }
+.gantt-outer::-webkit-scrollbar-thumb:hover,
+.workload-grid::-webkit-scrollbar-thumb:hover { background: var(--text-3); }
