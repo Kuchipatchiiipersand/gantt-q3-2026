@@ -340,15 +340,125 @@ async function confirmDelete() {
   renderGantt();
 }
 
-// ── Developer Modal ────────────────────────────────────────────────────────
-function openDevModal() {
+// ── Manage Modal (Projects + Developers) ──────────────────────────────────
+const PROJECT_COLORS = [
+  '#1565C0','#2E7D32','#E65100','#6A1B9A','#00695C','#B71C1C',
+  '#0277BD','#388E3C','#F57C00','#7B1FA2','#00796B','#AD1457',
+];
+let selectedProjColor = PROJECT_COLORS[0];
+
+function openManageModal(tab = 'projects') {
+  buildColorSwatches();
+  renderProjectList();
   renderDevList();
+  switchTab(tab);
   document.getElementById('dev-modal').classList.add('open');
-  document.getElementById('dev-name').focus();
 }
+// Keep old alias so existing code that calls openDevModal still works
+function openDevModal() { openManageModal('developers'); }
+
 function closeDevModal()          { document.getElementById('dev-modal').classList.remove('open'); }
 function closeDevModalOutside(e)  { if (e.target === document.getElementById('dev-modal')) closeDevModal(); }
 
+function switchTab(tab) {
+  ['projects','developers'].forEach(t => {
+    document.getElementById(`tab-btn-${t}`).classList.toggle('active', t === tab);
+    document.getElementById(`tab-${t}`).classList.toggle('active', t === tab);
+  });
+}
+
+// ── Color swatches ─────────────────────────────────────────────────────────
+function buildColorSwatches() {
+  const wrap = document.getElementById('proj-color-swatches');
+  if (wrap.dataset.built) return;
+  wrap.dataset.built = '1';
+  PROJECT_COLORS.forEach((c, i) => {
+    const s = document.createElement('div');
+    s.className = 'color-swatch' + (i === 0 ? ' selected' : '');
+    s.style.background = c;
+    s.dataset.color = c;
+    s.onclick = () => {
+      wrap.querySelectorAll('.color-swatch').forEach(x => x.classList.remove('selected'));
+      s.classList.add('selected');
+      selectedProjColor = c;
+    };
+    wrap.appendChild(s);
+  });
+}
+
+// ── Project management ─────────────────────────────────────────────────────
+function renderProjectList() {
+  const el = document.getElementById('proj-list');
+  if (!allTeams.length) {
+    el.innerHTML = '<div class="dev-list-empty">No projects yet.</div>';
+    return;
+  }
+  el.innerHTML = allTeams.map(t => `
+    <div class="dev-list-item">
+      <span class="dev-avatar" style="background:${t.color}">${t.name[0]}</span>
+      <div style="flex:1">
+        <div class="dev-name">${t.name}</div>
+        ${t.owner ? `<div class="dev-sub">Lead: ${t.owner}</div>` : ''}
+      </div>
+      <button class="btn-del-sm" title="Delete project" onclick="deleteProject(${t.id}, '${t.name.replace(/'/g,"\\'")}')">✕</button>
+    </div>`).join('');
+}
+
+function projEnterKey(e) { if (e.key === 'Enter') { e.preventDefault(); addProject(); } }
+
+async function addProject() {
+  const name  = document.getElementById('proj-name').value.trim();
+  const owner = document.getElementById('proj-lead').value.trim();
+  const errEl = document.getElementById('proj-add-error');
+  errEl.style.display = 'none';
+
+  if (!name) { showProjError('Please enter a project name.'); return; }
+
+  const res  = await fetch(`${API}/api/teams`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, owner, color: selectedProjColor }),
+  });
+  const data = await res.json();
+  if (!res.ok) { showProjError(data.error || 'Could not add project.'); return; }
+
+  allTeams.push(data);
+  document.getElementById('proj-name').value = '';
+  document.getElementById('proj-lead').value = '';
+
+  // Add to all project dropdowns
+  appendProjectToSelects(data);
+  renderProjectList();
+}
+
+async function deleteProject(id, name) {
+  const errEl = document.getElementById('proj-add-error');
+  errEl.style.display = 'none';
+  const res  = await fetch(`${API}/api/teams/${id}`, { method: 'DELETE' });
+  const data = await res.json();
+  if (!res.ok) { showProjError(data.error); return; }
+  allTeams = allTeams.filter(t => t.id !== id);
+  // Remove from dropdowns
+  ['filter-project','f-team','dev-project'].forEach(selId => {
+    const opt = document.querySelector(`#${selId} option[value="${name}"]`);
+    if (opt) opt.remove();
+  });
+  renderProjectList();
+}
+
+function showProjError(msg) {
+  const el = document.getElementById('proj-add-error');
+  el.textContent   = msg;
+  el.style.display = 'block';
+}
+
+function appendProjectToSelects(team) {
+  document.getElementById('filter-project').innerHTML += `<option value="${team.name}">${team.name}</option>`;
+  document.getElementById('f-team').innerHTML         += `<option value="${team.name}" data-color="${team.color}">${team.name}</option>`;
+  document.getElementById('dev-project').innerHTML    += `<option value="${team.name}">${team.name}</option>`;
+}
+
+// ── Developer management ───────────────────────────────────────────────────
 function devEnterKey(e) { if (e.key === 'Enter') { e.preventDefault(); addDeveloper(); } }
 
 function renderDevList() {
@@ -357,8 +467,6 @@ function renderDevList() {
     el.innerHTML = '<div class="dev-list-empty">No developers yet. Add one above.</div>';
     return;
   }
-
-  // Group by project
   const grouped = {};
   allTeams.forEach(t => { grouped[t.name] = []; });
   allDevelopers.forEach(d => {
@@ -393,8 +501,8 @@ async function addDeveloper() {
   const name    = document.getElementById('dev-name').value.trim();
   const project = document.getElementById('dev-project').value;
   const errEl   = document.getElementById('dev-add-error');
-
   errEl.style.display = 'none';
+
   if (!name)    { showDevError('Please enter a developer name.'); return; }
   if (!project) { showDevError('Please select a project.'); return; }
 
@@ -404,12 +512,10 @@ async function addDeveloper() {
     body: JSON.stringify({ name, project }),
   });
   const data = await res.json();
-
   if (!res.ok) { showDevError(data.error || 'Could not add developer.'); return; }
 
   allDevelopers.push(data);
   allDevelopers.sort((a, b) => a.project.localeCompare(b.project) || a.name.localeCompare(b.name));
-
   document.getElementById('dev-name').value    = '';
   document.getElementById('dev-project').value = '';
   renderDevList();
@@ -423,8 +529,8 @@ async function deleteDeveloper(id) {
 
 function showDevError(msg) {
   const el = document.getElementById('dev-add-error');
-  el.textContent    = msg;
-  el.style.display  = 'block';
+  el.textContent   = msg;
+  el.style.display = 'block';
 }
 
 // ── Bar Picker ─────────────────────────────────────────────────────────────

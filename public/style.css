@@ -571,6 +571,53 @@ header h1 { font-size: 15px; font-weight: 700; color: #fff; letter-spacing: -.2p
 .delete-sub { font-size: 12px; color: var(--text-3); text-align: center; }
 
 /* ══════════════════════════════════════════════
+   MODAL TABS
+══════════════════════════════════════════════ */
+.modal-tabs {
+  display: flex; gap: 2px;
+  background: var(--bg); border-radius: var(--radius-sm);
+  padding: 3px; margin-bottom: 20px;
+  border: 1px solid var(--border);
+}
+.modal-tab {
+  flex: 1; height: 32px;
+  border: none; border-radius: calc(var(--radius-sm) - 1px);
+  background: transparent; color: var(--text-2);
+  font-size: 13px; font-weight: 500; font-family: inherit;
+  cursor: pointer; transition: all .15s;
+}
+.modal-tab.active {
+  background: var(--surface); color: var(--text);
+  font-weight: 600;
+  box-shadow: var(--shadow-sm);
+}
+.modal-tab:not(.active):hover { color: var(--text); }
+
+.modal-tab-content { display: none; }
+.modal-tab-content.active { display: block; }
+
+/* Color swatches */
+.color-picker-row {
+  display: flex; align-items: center; gap: 10px;
+  margin-top: 10px;
+}
+.color-picker-label { font-size: 12px; font-weight: 600; color: var(--text-2); flex-shrink: 0; }
+.color-swatches { display: flex; gap: 6px; flex-wrap: wrap; }
+.color-swatch {
+  width: 22px; height: 22px; border-radius: 5px;
+  cursor: pointer; transition: transform .1s;
+  box-shadow: 0 0 0 2px transparent;
+}
+.color-swatch:hover { transform: scale(1.15); }
+.color-swatch.selected {
+  box-shadow: 0 0 0 2px #fff, 0 0 0 4px currentColor;
+  transform: scale(1.1);
+}
+
+/* dev sub-label */
+.dev-sub { font-size: 11px; color: var(--text-3); margin-top: 1px; }
+
+/* ══════════════════════════════════════════════
    DEVELOPER MODAL
 ══════════════════════════════════════════════ */
 .modal-dev { width: min(560px, 100%); }

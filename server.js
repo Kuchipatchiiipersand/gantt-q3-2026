@@ -207,10 +207,39 @@ async function seedDevelopers() {
   console.log(`Seeded ${devs.length} developers.`);
 }
 
-// ── API: Teams ─────────────────────────────────────────────────────────────
+// ── API: Teams / Projects ──────────────────────────────────────────────────
 app.get('/api/teams', async (req, res) => {
   try { res.json(await db.all('SELECT * FROM teams ORDER BY id')); }
   catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/teams', async (req, res) => {
+  try {
+    const { name, owner = '', color = '#4F46E5' } = req.body;
+    if (!name) return res.status(400).json({ error: 'name is required' });
+    const row = await db.get(
+      'INSERT INTO teams (name, owner, color) VALUES ($1, $2, $3) RETURNING *',
+      [name.trim(), owner.trim(), color]
+    );
+    res.json(row);
+  } catch(e) {
+    if (e.message?.includes('UNIQUE') || e.message?.includes('unique')) {
+      return res.status(409).json({ error: 'A project with that name already exists' });
+    }
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.delete('/api/teams/:id', async (req, res) => {
+  try {
+    const team = await db.get('SELECT * FROM teams WHERE id=$1', [req.params.id]);
+    if (!team) return res.status(404).json({ error: 'Project not found' });
+    const used = await db.get('SELECT COUNT(*) AS c FROM tasks WHERE team=$1', [team.name]);
+    const count = parseInt(used?.c || used?.count || 0);
+    if (count > 0) return res.status(400).json({ error: `Cannot delete — ${count} initiative(s) still assigned to this project` });
+    await db.run('DELETE FROM teams WHERE id=$1', [req.params.id]);
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // ── API: Developers ────────────────────────────────────────────────────────

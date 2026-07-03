@@ -6,7 +6,7 @@
 <title>Q3 2026 Roadmap</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=20260703210000">
+<link rel="stylesheet" href="style.css?v=20260703220000">
 </head>
 <body>
 
@@ -62,7 +62,7 @@
     Hide unscheduled
   </label>
   <div class="toolbar-sep"></div>
-  <button class="btn-manage-devs" onclick="openDevModal()">👥 Developers</button>
+  <button class="btn-manage-devs" onclick="openManageModal()">⚙ Manage</button>
   <div class="toolbar-stats" id="toolbar-stats"></div>
 </div>
 
@@ -181,37 +181,71 @@
   </div>
 </div>
 
-<!-- ── Manage Developers Modal ── -->
+<!-- ── Manage Modal (Projects + Developers tabs) ── -->
 <div class="modal-overlay" id="dev-modal" onclick="closeDevModalOutside(event)">
   <div class="modal modal-dev">
     <div class="modal-header">
       <div>
-        <h2>Manage Developers</h2>
-        <p>Add or remove developers assigned to each project.</p>
+        <h2>Manage</h2>
+        <p>Add and remove projects and developers.</p>
       </div>
       <button class="modal-close" onclick="closeDevModal()">✕</button>
     </div>
 
-    <div class="form-section">
-      <div class="form-section-title">Add Developer</div>
-      <div class="dev-add-row">
-        <div class="form-group" style="flex:1;margin-bottom:0">
-          <input type="text" id="dev-name" placeholder="Developer name" onkeydown="devEnterKey(event)">
-        </div>
-        <div class="select-wrap" style="flex:1">
-          <select id="dev-project">
-            <option value="">Select project...</option>
-          </select>
-        </div>
-        <button type="button" class="btn-primary" onclick="addDeveloper()">Add</button>
-      </div>
-      <div id="dev-add-error" class="dev-add-error" style="display:none"></div>
+    <!-- Tabs -->
+    <div class="modal-tabs">
+      <button class="modal-tab active" id="tab-btn-projects"   onclick="switchTab('projects')">Projects</button>
+      <button class="modal-tab"        id="tab-btn-developers" onclick="switchTab('developers')">Developers</button>
     </div>
 
-    <div class="form-section" style="margin-bottom:0">
-      <div class="form-section-title">Current Developers</div>
-      <div id="dev-list" class="dev-list"></div>
+    <!-- ── Projects Tab ── -->
+    <div class="modal-tab-content active" id="tab-projects">
+      <div class="form-section">
+        <div class="form-section-title">Add Project</div>
+        <div class="dev-add-row">
+          <div class="form-group" style="flex:1.2;margin-bottom:0">
+            <input type="text" id="proj-name" placeholder="Project name" onkeydown="projEnterKey(event)">
+          </div>
+          <div class="form-group" style="flex:1;margin-bottom:0">
+            <input type="text" id="proj-lead" placeholder="Lead (optional)">
+          </div>
+          <button type="button" class="btn-primary" onclick="addProject()">Add</button>
+        </div>
+        <div class="color-picker-row">
+          <span class="color-picker-label">Color</span>
+          <div class="color-swatches" id="proj-color-swatches"></div>
+        </div>
+        <div id="proj-add-error" class="dev-add-error" style="display:none"></div>
+      </div>
+      <div class="form-section" style="margin-bottom:0">
+        <div class="form-section-title">Current Projects</div>
+        <div id="proj-list" class="dev-list"></div>
+      </div>
     </div>
+
+    <!-- ── Developers Tab ── -->
+    <div class="modal-tab-content" id="tab-developers">
+      <div class="form-section">
+        <div class="form-section-title">Add Developer</div>
+        <div class="dev-add-row">
+          <div class="form-group" style="flex:1;margin-bottom:0">
+            <input type="text" id="dev-name" placeholder="Developer name" onkeydown="devEnterKey(event)">
+          </div>
+          <div class="select-wrap" style="flex:1">
+            <select id="dev-project">
+              <option value="">Select project...</option>
+            </select>
+          </div>
+          <button type="button" class="btn-primary" onclick="addDeveloper()">Add</button>
+        </div>
+        <div id="dev-add-error" class="dev-add-error" style="display:none"></div>
+      </div>
+      <div class="form-section" style="margin-bottom:0">
+        <div class="form-section-title">Current Developers</div>
+        <div id="dev-list" class="dev-list"></div>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -237,6 +271,6 @@
   </div>
 </div>
 
-<script src="app.js?v=20260703210000"></script>
+<script src="app.js?v=20260703220000"></script>
 </body>
 </html>
