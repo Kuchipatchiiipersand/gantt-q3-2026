@@ -65,18 +65,23 @@ async function loadTeams()      { const r = await fetch(`${API}/api/teams`);    
 async function loadDevelopers() { const r = await fetch(`${API}/api/developers`); allDevelopers = await r.json(); }
 
 function populateProjectSelects() {
-  const filterProj = document.getElementById('filter-project');
-  const filterDev  = document.getElementById('filter-dev');
-  const formProj   = document.getElementById('f-team');
-  const devProj    = document.getElementById('dev-project');
-
   allTeams.forEach(t => {
-    filterProj.innerHTML += `<option value="${t.name}">${t.name}</option>`;
-    formProj.innerHTML   += `<option value="${t.name}" data-color="${t.color}">${t.name}</option>`;
-    devProj.innerHTML    += `<option value="${t.name}">${t.name}</option>`;
+    document.getElementById('filter-project').innerHTML += `<option value="${t.name}">${t.name}</option>`;
+    document.getElementById('dev-project').innerHTML    += `<option value="${t.name}">${t.name}</option>`;
   });
-  // Populate filter-dev from allDevelopers
+  rebuildFormProjectSelect();
   rebuildDevFilter();
+}
+
+function rebuildFormProjectSelect() {
+  const sel = document.getElementById('f-team');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">Select project...</option>';
+  allTeams.forEach(t => {
+    sel.innerHTML += `<option value="${t.name}" data-color="${t.color}">${t.name}</option>`;
+  });
+  sel.innerHTML += `<option value="__new__" style="color:#4F46E5;font-weight:600">＋ New project...</option>`;
+  if (cur && cur !== '__new__') sel.value = cur;
 }
 
 function rebuildDevFilter() {
@@ -90,22 +95,37 @@ function rebuildDevFilter() {
 
 function onProjectChange() {
   const sel = document.getElementById('f-team');
+  if (sel.value === '__new__') {
+    sel.value = '';
+    openManageModal('projects');
+    return;
+  }
   const opt = sel.selectedOptions[0];
   if (opt?.dataset.color) document.getElementById('f-bar-color').value = opt.dataset.color;
-  rebuildOwnerDropdown(sel.value, '');
+  rebuildOwnerDropdown(sel.value, document.getElementById('f-owner').value);
 }
 
-function rebuildOwnerDropdown(projectName, currentOwner) {
-  const sel  = document.getElementById('f-owner');
-  const devs = projectName
-    ? allDevelopers.filter(d => d.project === projectName)
-    : allDevelopers;
-
+// Shows ALL developers grouped by project using <optgroup>
+function rebuildOwnerDropdown(selectedProject, currentOwner) {
+  const sel = document.getElementById('f-owner');
   sel.innerHTML = '<option value="">Select developer...</option>';
-  if (currentOwner && !devs.find(d => d.name === currentOwner)) {
+
+  // If currentOwner is not in any developer list, add as a standalone option
+  const allDevNames = allDevelopers.map(d => d.name);
+  if (currentOwner && !allDevNames.includes(currentOwner)) {
     sel.innerHTML += `<option value="${currentOwner}">${currentOwner}</option>`;
   }
-  devs.forEach(d => { sel.innerHTML += `<option value="${d.name}">${d.name}</option>`; });
+
+  // Group by project — show all devs
+  allTeams.forEach(t => {
+    const devs = allDevelopers.filter(d => d.project === t.name);
+    if (!devs.length) return;
+    const highlight = selectedProject && t.name === selectedProject ? ' ★' : '';
+    sel.innerHTML += `<optgroup label="${t.name}${highlight}">`;
+    devs.forEach(d => { sel.innerHTML += `<option value="${d.name}">${d.name}</option>`; });
+    sel.innerHTML += `</optgroup>`;
+  });
+
   sel.value = currentOwner || '';
 }
 
@@ -145,18 +165,10 @@ function renderGantt() {
   let totalRows = 0;
 
   allTeams.forEach(team => {
-    const teamName = team.name;
-    const devMap   = byTeam[teamName] || {};
-    const color    = team.color || '#64748B';
-
-    // Ordered developers: listed first, then unlisted owners
-    const listedDevs = allDevelopers.filter(d => d.project === teamName).map(d => d.name);
-    const taskDevs   = Object.keys(devMap);
-    const devOrder   = [...listedDevs.filter(n => taskDevs.includes(n)),
-                        ...taskDevs.filter(n => !listedDevs.includes(n))];
-    if (!devOrder.length) return;
-
-    const projTotal = devOrder.reduce((s, d) => s + (devMap[d]?.length || 0), 0);
+    const teamName  = team.name;
+    const tasks     = scheduled.filter(t => t.team === teamName);
+    const color     = team.color || '#64748B';
+    if (!tasks.length) return;
 
     // Project group header
     const gh = document.createElement('div');
@@ -165,26 +177,12 @@ function renderGantt() {
     gh.innerHTML = `
       <div class="tgh-dot" style="background:${color}"></div>
       <span class="tgh-name">${teamName}</span>
-      <span class="tgh-count">${projTotal}</span>`;
+      <span class="tgh-count">${tasks.length}</span>`;
     body.appendChild(gh);
 
-    // Developer sub-headers + task rows
-    devOrder.forEach(devName => {
-      const devTasks = devMap[devName] || [];
-      if (!devTasks.length) return;
-
-      const dh = document.createElement('div');
-      dh.className = 'dev-sub-header';
-      dh.innerHTML = `
-        <div class="dev-avatar dsh-avatar" style="background:${color}">${devName[0].toUpperCase()}</div>
-        <span class="dsh-name">${devName}</span>
-        <span class="tgh-count">${devTasks.length}</span>`;
-      body.appendChild(dh);
-
-      devTasks.forEach(task => {
-        body.appendChild(buildTaskRow(task, color));
-        totalRows++;
-      });
+    tasks.forEach(task => {
+      body.appendChild(buildTaskRow(task, color));
+      totalRows++;
     });
   });
 
@@ -206,16 +204,10 @@ function renderGantt() {
     body.appendChild(bh);
 
     allTeams.forEach(team => {
-      const teamName   = team.name;
-      const devMap     = backlogByTeam[teamName] || {};
-      const color      = team.color || '#64748B';
-      const listedDevs = allDevelopers.filter(d => d.project === teamName).map(d => d.name);
-      const taskDevs   = Object.keys(devMap);
-      const devOrder   = [...listedDevs.filter(n => taskDevs.includes(n)),
-                          ...taskDevs.filter(n => !listedDevs.includes(n))];
-      if (!devOrder.length) return;
-
-      const projTotal = devOrder.reduce((s, d) => s + (devMap[d]?.length || 0), 0);
+      const teamName = team.name;
+      const tasks    = backlog.filter(t => t.team === teamName);
+      const color    = team.color || '#64748B';
+      if (!tasks.length) return;
 
       const pbh = document.createElement('div');
       pbh.className = 'team-group-header';
@@ -223,25 +215,12 @@ function renderGantt() {
       pbh.innerHTML = `
         <div class="tgh-dot" style="background:${color}"></div>
         <span class="tgh-name">${teamName}</span>
-        <span class="tgh-count">${projTotal}</span>`;
+        <span class="tgh-count">${tasks.length}</span>`;
       body.appendChild(pbh);
 
-      devOrder.forEach(devName => {
-        const devTasks = devMap[devName] || [];
-        if (!devTasks.length) return;
-
-        const dh = document.createElement('div');
-        dh.className = 'dev-sub-header backlog-dev';
-        dh.innerHTML = `
-          <div class="dev-avatar dsh-avatar" style="background:${color}">${devName[0].toUpperCase()}</div>
-          <span class="dsh-name">${devName}</span>
-          <span class="tgh-count">${devTasks.length}</span>`;
-        body.appendChild(dh);
-
-        devTasks.forEach(task => {
-          body.appendChild(buildTaskRow(task, color));
-          totalRows++;
-        });
+      tasks.forEach(task => {
+        body.appendChild(buildTaskRow(task, color));
+        totalRows++;
       });
     });
   }
@@ -265,7 +244,18 @@ function buildTaskRow(task, teamColor) {
   const row = document.createElement('div');
   row.className = 'task-row';
 
-  // Initiative cell (now sticky at left:0, no developer column)
+  // Assignee cell
+  const ca = document.createElement('div');
+  ca.className = 'cell-assignee';
+  if (task.owner) {
+    ca.innerHTML = `<span class="cell-assignee-avatar" style="background:${teamColor}">${task.owner[0].toUpperCase()}</span>${task.owner}`;
+  } else {
+    ca.textContent = '—';
+  }
+  ca.title = task.owner || '';
+  row.appendChild(ca);
+
+  // Initiative cell
   const ci = document.createElement('div');
   ci.className = 'cell-init';
   const safeTitle = (task.outcome || task.initiative).replace(/"/g, '&quot;');
@@ -556,25 +546,24 @@ function showProjError(msg) {
 
 function appendProjectToSelects(team) {
   document.getElementById('filter-project').innerHTML += `<option value="${team.name}">${team.name}</option>`;
-  document.getElementById('f-team').innerHTML         += `<option value="${team.name}" data-color="${team.color}">${team.name}</option>`;
   document.getElementById('dev-project').innerHTML    += `<option value="${team.name}">${team.name}</option>`;
+  rebuildFormProjectSelect();
 }
 
 function rebuildAllProjectDropdowns() {
-  ['filter-project','f-team','dev-project'].forEach(selId => {
-    const sel = document.getElementById(selId);
-    const cur = sel.value;
-    const isForm = selId === 'f-team';
-    sel.innerHTML = selId === 'filter-project'
-      ? '<option value="">All Projects</option>'
-      : '<option value="">Select project...</option>';
-    allTeams.forEach(t => {
-      sel.innerHTML += isForm
-        ? `<option value="${t.name}" data-color="${t.color}">${t.name}</option>`
-        : `<option value="${t.name}">${t.name}</option>`;
-    });
-    sel.value = cur;
-  });
+  const filterSel = document.getElementById('filter-project');
+  const curFilter = filterSel.value;
+  filterSel.innerHTML = '<option value="">All Projects</option>';
+  allTeams.forEach(t => { filterSel.innerHTML += `<option value="${t.name}">${t.name}</option>`; });
+  filterSel.value = curFilter;
+
+  const devSel = document.getElementById('dev-project');
+  const curDev = devSel.value;
+  devSel.innerHTML = '<option value="">Select project...</option>';
+  allTeams.forEach(t => { devSel.innerHTML += `<option value="${t.name}">${t.name}</option>`; });
+  devSel.value = curDev;
+
+  rebuildFormProjectSelect();
 }
 
 // ── Developers CRUD ────────────────────────────────────────────────────────

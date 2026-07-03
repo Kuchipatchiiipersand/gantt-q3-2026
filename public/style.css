@@ -6,9 +6,10 @@
   /* Spacing */
   --header-h: 60px;
   --toolbar-h: 52px;
-  --col-init: 370px;
-  --col-status: 148px;
-  --label-w: 518px;
+  --col-assignee: 130px;
+  --col-init: 270px;
+  --col-status: 130px;
+  --label-w: 530px;
   --week-w: 70px;
   --row-h: 40px;
 
@@ -249,8 +250,9 @@ header h1 { font-size: 15px; font-weight: 700; color: #fff; letter-spacing: -.2p
   height: 34px;
 }
 .gh-col:last-child { border-right: none; }
-.gh-col-init   { flex: 1; padding-left: 20px; }
-.gh-col-status { width: var(--col-status); }
+.gh-col-assignee { width: var(--col-assignee); }
+.gh-col-init     { flex: 1; }
+.gh-col-status   { width: var(--col-status); }
 
 .gh-weeks { display: flex; flex: 1; }
 .gh-week {
@@ -302,12 +304,28 @@ header h1 { font-size: 15px; font-weight: 700; color: #fff; letter-spacing: -.2p
 .task-row:hover { background: #F8FAFC; }
 .task-row:hover .row-actions { opacity: 1; pointer-events: all; }
 
-/* Sticky left columns — no developer column; initiative is now at left:0 */
-.cell-init {
-  flex: 0 0 var(--col-init);
+/* Sticky left columns: Assignee | Initiative | Status */
+.cell-assignee {
+  flex: 0 0 var(--col-assignee);
   position: sticky; left: 0; z-index: 2;
   background: inherit;
-  padding: 0 12px 0 20px;
+  padding: 0 10px 0 14px;
+  font-size: 11px; font-weight: 600; color: var(--text-2);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  border-right: 1px solid var(--border);
+  height: var(--row-h); display: flex; align-items: center; gap: 7px;
+}
+.cell-assignee-avatar {
+  width: 22px; height: 22px; border-radius: 50%;
+  font-size: 10px; font-weight: 700; color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.cell-init {
+  flex: 0 0 var(--col-init);
+  position: sticky; left: var(--col-assignee); z-index: 2;
+  background: inherit;
+  padding: 0 12px;
   font-size: 12px; font-weight: 500; color: var(--text);
   line-height: 1.35;
   border-right: 1px solid var(--border);
@@ -317,25 +335,13 @@ header h1 { font-size: 15px; font-weight: 700; color: #fff; letter-spacing: -.2p
 .cell-init-text { flex: 1; }
 .cell-status {
   flex: 0 0 var(--col-status);
-  position: sticky; left: var(--col-init); z-index: 2;
+  position: sticky; left: calc(var(--col-assignee) + var(--col-init)); z-index: 2;
   background: inherit;
-  padding: 0 12px;
+  padding: 0 10px;
   border-right: 1px solid var(--border);
   display: flex; align-items: center;
   min-height: var(--row-h);
 }
-
-/* Developer sub-header row (sits between project header and task rows) */
-.dev-sub-header {
-  display: flex; align-items: center; gap: 10px;
-  height: 32px; padding: 0 12px 0 20px;
-  background: #FAFBFC;
-  border-bottom: 1px solid var(--border);
-  position: sticky; left: 0;
-}
-.dsh-avatar { width: 22px; height: 22px; font-size: 10px; flex-shrink: 0; }
-.dsh-name { font-size: 12px; font-weight: 600; color: var(--text-2); flex: 1; }
-.dev-sub-header.backlog-dev { background: #F8F9FA; }
 
 /* Backlog section header */
 .backlog-header {
