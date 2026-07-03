@@ -6,7 +6,7 @@
 <title>Q3 2026 Roadmap</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=20260703200000">
+<link rel="stylesheet" href="style.css?v=20260703210000">
 </head>
 <body>
 
@@ -42,8 +42,8 @@
   </div>
   <div class="toolbar-sep"></div>
   <div class="select-wrap">
-    <select id="filter-team" onchange="renderGantt()">
-      <option value="">All Teams</option>
+    <select id="filter-project" onchange="renderGantt()">
+      <option value="">All Projects</option>
     </select>
   </div>
   <div class="select-wrap">
@@ -61,6 +61,8 @@
     <span class="toggle-track"></span>
     Hide unscheduled
   </label>
+  <div class="toolbar-sep"></div>
+  <button class="btn-manage-devs" onclick="openDevModal()">👥 Developers</button>
   <div class="toolbar-stats" id="toolbar-stats"></div>
 </div>
 
@@ -77,7 +79,7 @@
     </div>
     <div class="gh-cols">
       <div class="gh-label-group">
-        <div class="gh-col gh-col-team">Team</div>
+        <div class="gh-col gh-col-team">Developer</div>
         <div class="gh-col gh-col-init">Initiative</div>
         <div class="gh-col gh-col-status">Status</div>
       </div>
@@ -90,7 +92,7 @@
 </div>
 </div>
 
-<!-- ── Add/Edit Modal ── -->
+<!-- ── Add/Edit Initiative Modal ── -->
 <div class="modal-overlay" id="modal" onclick="closeModalOutside(event)">
   <div class="modal">
     <div class="modal-header">
@@ -104,17 +106,19 @@
       <input type="hidden" id="task-id">
 
       <div class="form-section">
-        <div class="form-section-title">Team &amp; Ownership</div>
+        <div class="form-section-title">Project &amp; Developer</div>
         <div class="form-grid">
           <div class="form-group">
-            <label>Team <span style="color:#F43F5E">*</span></label>
-            <select id="f-team" required onchange="updateOwner()">
-              <option value="">Select team...</option>
+            <label>Project <span style="color:#F43F5E">*</span></label>
+            <select id="f-team" required onchange="onProjectChange()">
+              <option value="">Select project...</option>
             </select>
           </div>
           <div class="form-group">
-            <label>Owner</label>
-            <input type="text" id="f-owner" placeholder="Owner name">
+            <label>Developer</label>
+            <select id="f-owner">
+              <option value="">Select developer...</option>
+            </select>
           </div>
         </div>
       </div>
@@ -177,6 +181,40 @@
   </div>
 </div>
 
+<!-- ── Manage Developers Modal ── -->
+<div class="modal-overlay" id="dev-modal" onclick="closeDevModalOutside(event)">
+  <div class="modal modal-dev">
+    <div class="modal-header">
+      <div>
+        <h2>Manage Developers</h2>
+        <p>Add or remove developers assigned to each project.</p>
+      </div>
+      <button class="modal-close" onclick="closeDevModal()">✕</button>
+    </div>
+
+    <div class="form-section">
+      <div class="form-section-title">Add Developer</div>
+      <div class="dev-add-row">
+        <div class="form-group" style="flex:1;margin-bottom:0">
+          <input type="text" id="dev-name" placeholder="Developer name" onkeydown="devEnterKey(event)">
+        </div>
+        <div class="select-wrap" style="flex:1">
+          <select id="dev-project">
+            <option value="">Select project...</option>
+          </select>
+        </div>
+        <button type="button" class="btn-primary" onclick="addDeveloper()">Add</button>
+      </div>
+      <div id="dev-add-error" class="dev-add-error" style="display:none"></div>
+    </div>
+
+    <div class="form-section" style="margin-bottom:0">
+      <div class="form-section-title">Current Developers</div>
+      <div id="dev-list" class="dev-list"></div>
+    </div>
+  </div>
+</div>
+
 <!-- ── Delete Confirm ── -->
 <div class="modal-overlay" id="delete-modal" onclick="closeDeleteOutside(event)">
   <div class="modal modal-sm">
@@ -199,6 +237,6 @@
   </div>
 </div>
 
-<script src="app.js?v=20260703200000"></script>
+<script src="app.js?v=20260703210000"></script>
 </body>
 </html>

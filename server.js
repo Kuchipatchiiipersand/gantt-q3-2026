@@ -24,7 +24,6 @@ app.use(express.static(path.join(__dirname, 'public'), {
 let db;
 
 if (process.env.DATABASE_URL) {
-  // Render Postgres
   const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: { rejectUnauthorized: false }
@@ -37,7 +36,6 @@ if (process.env.DATABASE_URL) {
   };
   console.log('Using PostgreSQL');
 } else {
-  // Local: Node built-in SQLite
   const { DatabaseSync } = require('node:sqlite');
   const sqlite = new DatabaseSync(path.join(__dirname, 'gantt.db'));
   db = {
@@ -50,9 +48,7 @@ if (process.env.DATABASE_URL) {
   console.log('Using SQLite');
 }
 
-// Convert $1/$2 pg params → ? for SQLite
 function adaptSQL(sql) {
-  let i = 0;
   return sql.replace(/\$\d+/g, () => '?');
 }
 
@@ -66,6 +62,12 @@ async function initSchema() {
         owner TEXT NOT NULL,
         color TEXT NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS developers (
+        id      SERIAL PRIMARY KEY,
+        name    TEXT NOT NULL,
+        project TEXT NOT NULL,
+        UNIQUE(name, project)
+      );
       CREATE TABLE IF NOT EXISTS tasks (
         id            SERIAL PRIMARY KEY,
         team          TEXT NOT NULL,
@@ -78,7 +80,7 @@ async function initSchema() {
         status        TEXT DEFAULT 'active',
         bar_start     INTEGER DEFAULT -1,
         bar_end       INTEGER DEFAULT -1,
-        bar_color     TEXT DEFAULT '#1565C0',
+        bar_color     TEXT DEFAULT '#4F46E5',
         is_blocked    INTEGER DEFAULT 0,
         sort_order    INTEGER DEFAULT 0,
         created_at    TIMESTAMPTZ DEFAULT NOW(),
@@ -93,6 +95,12 @@ async function initSchema() {
         owner TEXT NOT NULL,
         color TEXT NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS developers (
+        id      INTEGER PRIMARY KEY AUTOINCREMENT,
+        name    TEXT NOT NULL,
+        project TEXT NOT NULL,
+        UNIQUE(name, project)
+      );
       CREATE TABLE IF NOT EXISTS tasks (
         id            INTEGER PRIMARY KEY AUTOINCREMENT,
         team          TEXT NOT NULL,
@@ -105,7 +113,7 @@ async function initSchema() {
         status        TEXT DEFAULT 'active',
         bar_start     INTEGER DEFAULT -1,
         bar_end       INTEGER DEFAULT -1,
-        bar_color     TEXT DEFAULT '#1565C0',
+        bar_color     TEXT DEFAULT '#4F46E5',
         is_blocked    INTEGER DEFAULT 0,
         sort_order    INTEGER DEFAULT 0,
         created_at    TEXT DEFAULT (datetime('now')),
@@ -119,7 +127,10 @@ async function initSchema() {
 async function seed() {
   const row = await db.get('SELECT COUNT(*) AS c FROM tasks');
   const count = parseInt(row.c || row.count || 0);
-  if (count > 0) return;
+  if (count > 0) {
+    await seedDevelopers();
+    return;
+  }
 
   const teams = [
     ['Paynet','Chris','#1565C0'], ['PGW','Sean','#2E7D32'],
@@ -162,7 +173,7 @@ async function seed() {
     ['DevSecOps','Mohan','DB Works — Read-Only DR Instance','Enable a read-only DB instance and DR server for disaster-recovery','Sep 2026 (delayed)','Successful DR drill completion','Delayed from original schedule','active',9,12,'#B71C1C',1,4],
   ];
 
-  for (const [i, t] of tasks.entries()) {
+  for (const t of tasks) {
     await db.run(
       `INSERT INTO tasks (team,owner,initiative,outcome,target,metric,dependencies,status,bar_start,bar_end,bar_color,is_blocked,sort_order)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
@@ -170,14 +181,69 @@ async function seed() {
     );
   }
   console.log(`Seeded ${tasks.length} tasks.`);
+  await seedDevelopers();
 }
 
-// ── API ────────────────────────────────────────────────────────────────────
+async function seedDevelopers() {
+  const row = await db.get('SELECT COUNT(*) AS c FROM developers');
+  const count = parseInt(row.c || row.count || 0);
+  if (count > 0) return;
+
+  const devs = [
+    ['Chris',   'Paynet'],
+    ['Sean',    'PGW'],
+    ['Justin',  'PGW'],
+    ['Ronald',  'PGW'],
+    ['Ho',      'Settlement'],
+    ['Jeff',    'Portals'],
+    ['Ronald',  'Integrations'],
+    ['Mohan',   'DevSecOps'],
+  ];
+  for (const [name, project] of devs) {
+    try {
+      await db.run('INSERT INTO developers (name, project) VALUES ($1, $2)', [name, project]);
+    } catch (_) { /* skip duplicate */ }
+  }
+  console.log(`Seeded ${devs.length} developers.`);
+}
+
+// ── API: Teams ─────────────────────────────────────────────────────────────
 app.get('/api/teams', async (req, res) => {
   try { res.json(await db.all('SELECT * FROM teams ORDER BY id')); }
   catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── API: Developers ────────────────────────────────────────────────────────
+app.get('/api/developers', async (req, res) => {
+  try { res.json(await db.all('SELECT * FROM developers ORDER BY project, name')); }
+  catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/developers', async (req, res) => {
+  try {
+    const { name, project } = req.body;
+    if (!name || !project) return res.status(400).json({ error: 'name and project required' });
+    const row = await db.get(
+      'INSERT INTO developers (name, project) VALUES ($1, $2) RETURNING *',
+      [name.trim(), project]
+    );
+    res.json(row);
+  } catch(e) {
+    if (e.message?.includes('UNIQUE') || e.message?.includes('unique')) {
+      return res.status(409).json({ error: 'Developer already exists in this project' });
+    }
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.delete('/api/developers/:id', async (req, res) => {
+  try {
+    await db.run('DELETE FROM developers WHERE id=$1', [req.params.id]);
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── API: Tasks ─────────────────────────────────────────────────────────────
 app.get('/api/tasks', async (req, res) => {
   try { res.json(await db.all('SELECT * FROM tasks ORDER BY team, sort_order, id')); }
   catch(e) { res.status(500).json({ error: e.message }); }
@@ -187,7 +253,7 @@ app.post('/api/tasks', async (req, res) => {
   try {
     const { team, owner='', initiative, outcome='', target='', metric='',
             dependencies='', status='active', bar_start=-1, bar_end=-1,
-            bar_color='#1565C0', is_blocked=0 } = req.body;
+            bar_color='#4F46E5', is_blocked=0 } = req.body;
     if (!team || !initiative) return res.status(400).json({ error: 'team and initiative required' });
     const max = await db.get('SELECT MAX(sort_order) AS m FROM tasks WHERE team=$1', [team]);
     const sort_order = (parseInt(max?.m) || 0) + 1;
@@ -203,7 +269,7 @@ app.post('/api/tasks', async (req, res) => {
 app.put('/api/tasks/:id', async (req, res) => {
   try {
     const { initiative, owner='', outcome='', target='', metric='', dependencies='',
-            status='active', bar_start=-1, bar_end=-1, bar_color='#1565C0', is_blocked=0 } = req.body;
+            status='active', bar_start=-1, bar_end=-1, bar_color='#4F46E5', is_blocked=0 } = req.body;
     const row = await db.get(
       `UPDATE tasks SET initiative=$1,owner=$2,outcome=$3,target=$4,metric=$5,dependencies=$6,
        status=$7,bar_start=$8,bar_end=$9,bar_color=$10,is_blocked=$11,updated_at=NOW()
@@ -223,5 +289,5 @@ app.delete('/api/tasks/:id', async (req, res) => {
 
 // ── Start ──────────────────────────────────────────────────────────────────
 initSchema().then(seed).then(() => {
-  app.listen(PORT, () => console.log(`✅  Gantt app → http://localhost:${PORT}`));
+  app.listen(PORT, () => console.log(`Gantt app → http://localhost:${PORT}`));
 }).catch(err => { console.error('Startup error:', err); process.exit(1); });
