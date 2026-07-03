@@ -3,64 +3,78 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Q3 2026 Gantt Chart</title>
+<title>Q3 2026 Roadmap</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=20260703180542">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css?v=20260703200000">
 </head>
 <body>
 
 <!-- ── Header ── -->
 <header>
   <div class="header-left">
-    <h1>Q3 2026 Roadmap</h1>
-    <span class="header-sub">Paynet · PGW · Settlement · Portals · Integrations · DevSecOps</span>
+    <div class="header-logo">G</div>
+    <div class="header-title-group">
+      <h1>Q3 2026 Roadmap</h1>
+      <div class="header-sub">Jul – Sep 2026 &nbsp;·&nbsp; Paynet &nbsp;·&nbsp; PGW &nbsp;·&nbsp; Settlement &nbsp;·&nbsp; Portals &nbsp;·&nbsp; Integrations &nbsp;·&nbsp; DevSecOps</div>
+    </div>
   </div>
   <div class="header-right">
     <div class="legend">
-      <span class="leg-dot" style="background:#388E3C"></span>Done
-      <span class="leg-dot" style="background:#1565C0"></span>Active
-      <span class="leg-dot" style="background:#C62828"></span>Blocked
-      <span class="leg-dot" style="background:#F57F17"></span>Dep. gated
-      <span class="leg-dot" style="background:#9E9E9E"></span>Unscheduled
+      <div class="leg-item"><div class="leg-dot" style="background:#22C55E"></div>Done</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#3B82F6"></div>Active</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#F43F5E"></div>Blocked</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#F59E0B"></div>Pending</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#94A3B8"></div>Unscheduled</div>
     </div>
-    <button class="btn-add" onclick="openModal()">+ Add Initiative</button>
+    <div class="header-divider"></div>
+    <button class="btn-add" onclick="openModal()">
+      <span class="btn-add-icon">+</span> Add Initiative
+    </button>
   </div>
 </header>
 
-<!-- ── Filters ── -->
+<!-- ── Toolbar ── -->
 <div class="toolbar">
-  <input id="search" type="text" placeholder="🔍  Search initiatives..." oninput="renderGantt()">
-  <select id="filter-team" onchange="renderGantt()">
-    <option value="">All Teams</option>
-  </select>
-  <select id="filter-status" onchange="renderGantt()">
-    <option value="">All Statuses</option>
-    <option value="active">Active</option>
-    <option value="done">Done</option>
-    <option value="blocked">Blocked</option>
-    <option value="pending">Pending</option>
-    <option value="unscheduled">Unscheduled</option>
-  </select>
+  <div class="search-wrap">
+    <span class="search-icon">⌕</span>
+    <input id="search" type="text" placeholder="Search initiatives..." oninput="renderGantt()">
+  </div>
+  <div class="toolbar-sep"></div>
+  <div class="select-wrap">
+    <select id="filter-team" onchange="renderGantt()">
+      <option value="">All Teams</option>
+    </select>
+  </div>
+  <div class="select-wrap">
+    <select id="filter-status" onchange="renderGantt()">
+      <option value="">All Statuses</option>
+      <option value="active">Active</option>
+      <option value="done">Done</option>
+      <option value="blocked">Blocked</option>
+      <option value="pending">Pending</option>
+      <option value="unscheduled">Unscheduled</option>
+    </select>
+  </div>
   <label class="toggle-label">
-    <input type="checkbox" id="hide-unscheduled" onchange="renderGantt()"> Hide unscheduled
+    <input type="checkbox" id="hide-unscheduled" onchange="renderGantt()">
+    <span class="toggle-track"></span>
+    Hide unscheduled
   </label>
+  <div class="toolbar-stats" id="toolbar-stats"></div>
 </div>
 
 <!-- ── Gantt ── -->
 <div class="gantt-outer">
 <div class="gantt-wrap" id="gantt-wrap">
 
-  <!-- Column + timeline header — sticky top:0 within gantt-outer -->
   <div class="gantt-header" id="gantt-header">
-    <!-- Row 1: month labels -->
     <div class="gh-months">
       <div class="gh-month-spacer"></div>
-      <div class="gh-month" style="flex:5">JULY 2026</div>
-      <div class="gh-month" style="flex:4">AUGUST 2026</div>
-      <div class="gh-month" style="flex:4">SEPTEMBER 2026</div>
+      <div class="gh-month jul" style="flex:5">JULY 2026</div>
+      <div class="gh-month aug" style="flex:4">AUGUST 2026</div>
+      <div class="gh-month sep" style="flex:4">SEPTEMBER 2026</div>
     </div>
-    <!-- Row 2: column labels + week labels -->
     <div class="gh-cols">
       <div class="gh-label-group">
         <div class="gh-col gh-col-team">Team</div>
@@ -71,7 +85,6 @@
     </div>
   </div>
 
-  <!-- Gantt body -->
   <div id="gantt-body"></div>
 
 </div>
@@ -81,74 +94,84 @@
 <div class="modal-overlay" id="modal" onclick="closeModalOutside(event)">
   <div class="modal">
     <div class="modal-header">
-      <h2 id="modal-title">Add Initiative</h2>
+      <div>
+        <h2 id="modal-title">Add Initiative</h2>
+        <p id="modal-sub">Fill in the details for this initiative.</p>
+      </div>
       <button class="modal-close" onclick="closeModal()">✕</button>
     </div>
     <form id="task-form" onsubmit="saveTask(event)">
       <input type="hidden" id="task-id">
 
-      <div class="form-grid">
-        <div class="form-group">
-          <label>Team *</label>
-          <select id="f-team" required onchange="updateOwner()">
-            <option value="">Select team...</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>Owner</label>
-          <input type="text" id="f-owner" placeholder="Owner name">
-        </div>
-      </div>
-
-      <div class="form-group">
-        <label>Initiative Name *</label>
-        <input type="text" id="f-initiative" required placeholder="e.g. MyDebit TR31">
-      </div>
-
-      <div class="form-group">
-        <label>Outcome Statement</label>
-        <textarea id="f-outcome" rows="2" placeholder="Enable... so that..."></textarea>
-      </div>
-
-      <div class="form-grid">
-        <div class="form-group">
-          <label>Target Timeline</label>
-          <input type="text" id="f-target" placeholder="e.g. Jul 2026, Target 15 Jul">
-        </div>
-        <div class="form-group">
-          <label>Status</label>
-          <select id="f-status">
-            <option value="active">Active</option>
-            <option value="done">Done</option>
-            <option value="blocked">Blocked</option>
-            <option value="pending">Pending</option>
-            <option value="unscheduled">Unscheduled</option>
-          </select>
+      <div class="form-section">
+        <div class="form-section-title">Team &amp; Ownership</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Team <span style="color:#F43F5E">*</span></label>
+            <select id="f-team" required onchange="updateOwner()">
+              <option value="">Select team...</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Owner</label>
+            <input type="text" id="f-owner" placeholder="Owner name">
+          </div>
         </div>
       </div>
 
-      <div class="form-group">
-        <label>Success Metric</label>
-        <input type="text" id="f-metric" placeholder="How will you measure success?">
+      <div class="form-section">
+        <div class="form-section-title">Initiative Details</div>
+        <div class="form-group">
+          <label>Initiative Name <span style="color:#F43F5E">*</span></label>
+          <input type="text" id="f-initiative" required placeholder="e.g. MyDebit TR31">
+        </div>
+        <div class="form-group">
+          <label>Outcome Statement <span class="label-hint">— what will this enable?</span></label>
+          <textarea id="f-outcome" rows="2" placeholder="Enable... so that..."></textarea>
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Target Timeline</label>
+            <input type="text" id="f-target" placeholder="e.g. Jul 2026, Target 15 Jul">
+          </div>
+          <div class="form-group">
+            <label>Status</label>
+            <select id="f-status">
+              <option value="active">Active</option>
+              <option value="done">Done</option>
+              <option value="blocked">Blocked</option>
+              <option value="pending">Pending</option>
+              <option value="unscheduled">Unscheduled</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Success Metric</label>
+          <input type="text" id="f-metric" placeholder="How will you measure success?">
+        </div>
+        <div class="form-group">
+          <label>Dependencies / Notes</label>
+          <input type="text" id="f-dependencies" placeholder="Depends on..., Blocked by...">
+        </div>
       </div>
 
-      <div class="form-group">
-        <label>Dependencies / Notes</label>
-        <input type="text" id="f-dependencies" placeholder="Depends on..., Blocked by...">
-      </div>
-
-      <div class="form-group">
-        <label>Timeline Bar <span class="label-hint">(drag on chart or set manually)</span></label>
+      <div class="form-section">
+        <div class="form-section-title">Timeline Bar</div>
+        <div class="bar-picker-label">
+          <span class="bar-picker-hint">Drag to select weeks</span>
+          <span class="bar-picker-selection" id="bp-selection">No range selected</span>
+        </div>
+        <div class="bar-month-labels" id="bar-month-labels"></div>
         <div class="bar-picker" id="bar-picker"></div>
-        <div class="bar-labels" id="bar-labels"></div>
-        <input type="hidden" id="f-bar-start" value="0">
-        <input type="hidden" id="f-bar-end"   value="0">
-        <input type="hidden" id="f-bar-color" value="#1565C0">
+        <div class="bar-week-labels" id="bar-labels"></div>
+        <input type="hidden" id="f-bar-start" value="-1">
+        <input type="hidden" id="f-bar-end"   value="-1">
+        <input type="hidden" id="f-bar-color" value="#4F46E5">
       </div>
 
       <div class="modal-footer">
         <button type="button" class="btn-secondary" onclick="closeModal()">Cancel</button>
-        <button type="submit" class="btn-primary">Save Initiative</button>
+        <button type="submit" class="btn-primary" id="form-submit-btn">Save Initiative</button>
       </div>
     </form>
   </div>
@@ -158,17 +181,24 @@
 <div class="modal-overlay" id="delete-modal" onclick="closeDeleteOutside(event)">
   <div class="modal modal-sm">
     <div class="modal-header">
-      <h2>Delete Initiative</h2>
+      <div>
+        <h2>Delete Initiative</h2>
+        <p>This action cannot be undone.</p>
+      </div>
       <button class="modal-close" onclick="closeDelete()">✕</button>
     </div>
-    <p id="delete-msg" style="padding:16px 0;color:#555;line-height:1.5"></p>
+    <div style="padding: 16px 0;">
+      <div class="delete-icon">🗑️</div>
+      <p class="delete-msg" id="delete-msg"></p>
+      <p class="delete-sub">This will permanently remove the initiative and its timeline data.</p>
+    </div>
     <div class="modal-footer">
       <button class="btn-secondary" onclick="closeDelete()">Cancel</button>
-      <button class="btn-danger" onclick="confirmDelete()">Delete</button>
+      <button class="btn-danger" onclick="confirmDelete()">Delete permanently</button>
     </div>
   </div>
 </div>
 
-<script src="app.js?v=20260703180542"></script>
+<script src="app.js?v=20260703200000"></script>
 </body>
 </html>

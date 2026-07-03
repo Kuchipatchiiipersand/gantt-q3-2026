@@ -7,12 +7,23 @@ const WEEKS = [
 ];
 const NW = WEEKS.length;
 
+// Month ranges (inclusive week indices)
+const MONTHS = [
+  { cls: 'jul', from: 0, to: 4  },
+  { cls: 'aug', from: 5, to: 8  },
+  { cls: 'sep', from: 9, to: 12 },
+];
+
+function weekMonth(i) {
+  return MONTHS.find(m => i >= m.from && i <= m.to)?.cls ?? 'jul';
+}
+
 const STATUS_META = {
-  active:      { label: 'Active',       cls: 's-active' },
-  done:        { label: '✅ Done',      cls: 's-done' },
-  blocked:     { label: '🔴 Blocked',   cls: 's-blocked' },
-  pending:     { label: '⏳ Pending',   cls: 's-pending' },
-  unscheduled: { label: 'Unscheduled',  cls: 's-unscheduled' },
+  active:      { label: 'Active',      cls: 's-active' },
+  done:        { label: 'Done',        cls: 's-done' },
+  blocked:     { label: 'Blocked',     cls: 's-blocked' },
+  pending:     { label: 'Pending',     cls: 's-pending' },
+  unscheduled: { label: 'Unscheduled', cls: 's-unscheduled' },
 };
 
 let allTasks = [];
@@ -30,9 +41,10 @@ async function boot() {
 
 function buildWeekHeaders() {
   const el = document.getElementById('week-headers');
-  WEEKS.forEach(w => {
+  WEEKS.forEach((w, i) => {
     const d = document.createElement('div');
-    d.className = 'gh-week';
+    const mth = weekMonth(i);
+    d.className = `gh-week ${mth}`;
     d.textContent = w;
     el.appendChild(d);
   });
@@ -52,7 +64,7 @@ function populateTeamSelects() {
   const filterSel = document.getElementById('filter-team');
   const formSel   = document.getElementById('f-team');
   allTeams.forEach(t => {
-    filterSel.innerHTML += `<option value="${t.name}">${t.name} (${t.owner})</option>`;
+    filterSel.innerHTML += `<option value="${t.name}">${t.name}</option>`;
     formSel.innerHTML   += `<option value="${t.name}" data-owner="${t.owner}" data-color="${t.color}">${t.name} (${t.owner})</option>`;
   });
 }
@@ -60,7 +72,10 @@ function populateTeamSelects() {
 function updateOwner() {
   const sel = document.getElementById('f-team');
   const opt = sel.selectedOptions[0];
-  if (opt && opt.dataset.owner) document.getElementById('f-owner').value = opt.dataset.owner;
+  if (opt && opt.dataset.owner) {
+    document.getElementById('f-owner').value = opt.dataset.owner;
+    document.getElementById('f-bar-color').value = opt.dataset.color || '#4F46E5';
+  }
 }
 
 // ── Render ────────────────────────────────────────────────────────────────
@@ -78,7 +93,6 @@ function renderGantt() {
     return true;
   });
 
-  // Group by team
   const byTeam = {};
   const teamOrder = allTeams.map(t => t.name);
   teamOrder.forEach(name => { byTeam[name] = []; });
@@ -93,13 +107,17 @@ function renderGantt() {
     if (!tasks || tasks.length === 0) return;
 
     const teamMeta = allTeams.find(t => t.name === teamName);
-    const color    = teamMeta ? teamMeta.color : '#455A64';
+    const color    = teamMeta ? teamMeta.color : '#64748B';
 
     // Team group header
     const gh = document.createElement('div');
     gh.className = 'team-group-header';
-    gh.style.background = color;
-    gh.textContent = `${teamName.toUpperCase()}  •  ${teamMeta?.owner || ''}`;
+    gh.style.borderLeft = `4px solid ${color}`;
+    gh.innerHTML = `
+      <div class="tgh-dot" style="background:${color}"></div>
+      <span class="tgh-name">${teamName}</span>
+      <span class="tgh-owner">${teamMeta?.owner || ''}</span>
+      <span class="tgh-count">${tasks.length}</span>`;
     body.appendChild(gh);
 
     tasks.forEach(task => {
@@ -109,7 +127,19 @@ function renderGantt() {
   });
 
   if (totalRows === 0) {
-    body.innerHTML = `<div class="empty-state"><h3>No initiatives found</h3><p>Try adjusting your filters or <button class="btn-add" style="display:inline;padding:4px 10px" onclick="openModal()">add a new one</button></p></div>`;
+    body.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-state-icon">📋</div>
+        <h3>No initiatives found</h3>
+        <p>Try adjusting your filters or add a new initiative.</p>
+      </div>`;
+  }
+
+  // Update stats
+  const statsEl = document.getElementById('toolbar-stats');
+  if (statsEl) {
+    const blocked = filtered.filter(t => t.status === 'blocked').length;
+    statsEl.textContent = `${totalRows} initiatives${blocked ? ` · ${blocked} blocked` : ''}`;
   }
 }
 
@@ -127,10 +157,13 @@ function buildTaskRow(task, teamColor) {
   // Initiative cell
   const ci = document.createElement('div');
   ci.className = 'cell-init';
-  ci.innerHTML = `<span title="${task.outcome || task.initiative}">${task.initiative}</span>
+  const safeTitle = (task.outcome || task.initiative).replace(/"/g, '&quot;');
+  const safeName  = task.initiative.replace(/'/g, "\\'");
+  ci.innerHTML = `
+    <span class="cell-init-text" title="${safeTitle}">${task.initiative}</span>
     <div class="row-actions">
       <button class="btn-edit" title="Edit" onclick="openModal(${task.id})">✎</button>
-      <button class="btn-del" title="Delete" onclick="openDelete(${task.id}, '${task.initiative.replace(/'/g,"\\'")}')">🗑</button>
+      <button class="btn-del"  title="Delete" onclick="openDelete(${task.id}, '${safeName}')">✕</button>
     </div>`;
   row.appendChild(ci);
 
@@ -138,44 +171,53 @@ function buildTaskRow(task, teamColor) {
   const cs = document.createElement('div');
   cs.className = 'cell-status';
   const sm = STATUS_META[task.status] || STATUS_META.active;
-  const chip = document.createElement('span');
-  chip.className = `status-chip ${sm.cls}`;
-  chip.textContent = sm.label;
-  chip.title = task.target || '';
-  cs.appendChild(chip);
+  cs.innerHTML = `<span class="status-chip ${sm.cls}" title="${task.target || ''}">
+    <span class="chip-dot"></span>${sm.label}
+  </span>`;
   row.appendChild(cs);
 
   // Bar area
   const cb = document.createElement('div');
   cb.className = 'cell-bars';
+  cb.style.width = `${NW * 70}px`;
 
-  // Week backgrounds
+  // Week backgrounds + dividers
   WEEKS.forEach((_, wi) => {
+    const mth   = weekMonth(wi);
+    const local = wi - MONTHS.find(m => m.cls === mth).from;
     const bg = document.createElement('div');
-    bg.className = `week-bg${wi % 2 === 1 ? ' alt' : ''}`;
-    bg.style.left = `${wi * 72}px`;
-    bg.style.width = '72px';
+    bg.className = `week-bg ${mth}${local % 2 === 1 ? ' alt' : ''}`;
+    bg.style.left  = `${wi * 70}px`;
+    bg.style.width = '70px';
     cb.appendChild(bg);
+
+    if (wi > 0) {
+      const div = document.createElement('div');
+      div.className = 'week-divider';
+      div.style.left = `${wi * 70}px`;
+      cb.appendChild(div);
+    }
   });
-  cb.style.width = `${NW * 72}px`;
 
   const bs = parseInt(task.bar_start);
   const be = parseInt(task.bar_end);
 
   if (bs >= 0 && be >= 0 && be >= bs) {
     const bar = document.createElement('div');
-    bar.className = 'bar' + (task.is_blocked && task.status !== 'done' ? ' striped' : '');
-    bar.style.left   = `${bs * 72 + 3}px`;
-    bar.style.width  = `${(be - bs + 1) * 72 - 6}px`;
+    const isBlocked = task.is_blocked && task.status !== 'done';
+    bar.className = 'bar' + (isBlocked ? ' striped' : '') + (task.status === 'done' ? ' done-bar' : '');
+    bar.style.left       = `${bs * 70 + 4}px`;
+    bar.style.width      = `${(be - bs + 1) * 70 - 8}px`;
     bar.style.background = task.bar_color || teamColor;
-    bar.title = `${task.initiative}\n${task.target || ''}${task.dependencies ? '\nDeps: ' + task.dependencies : ''}`;
+    const tipLines = [task.initiative, task.target, task.dependencies].filter(Boolean);
+    bar.title       = tipLines.join('\n');
     bar.textContent = task.status === 'done' ? '✓' : '';
-    bar.onclick = () => openModal(task.id);
+    bar.onclick     = () => openModal(task.id);
     cb.appendChild(bar);
   } else if (task.status !== 'done') {
     const lbl = document.createElement('div');
-    lbl.className = 'no-bar-label';
-    lbl.textContent = task.status === 'unscheduled' ? '— unscheduled —' : task.target || '—';
+    lbl.className   = 'no-bar-label';
+    lbl.textContent = task.status === 'unscheduled' ? '— unscheduled —' : (task.target || '—');
     cb.appendChild(lbl);
   }
 
@@ -185,9 +227,8 @@ function buildTaskRow(task, teamColor) {
 
 // ── Add / Edit Modal ───────────────────────────────────────────────────────
 function openModal(id = null) {
-  const modal  = document.getElementById('modal');
-  const form   = document.getElementById('task-form');
-  const title  = document.getElementById('modal-title');
+  const modal = document.getElementById('modal');
+  const form  = document.getElementById('task-form');
 
   form.reset();
   document.getElementById('task-id').value = '';
@@ -196,29 +237,33 @@ function openModal(id = null) {
   if (id) {
     const t = allTasks.find(x => x.id === id);
     if (!t) return;
-    title.textContent = 'Edit Initiative';
+    document.getElementById('modal-title').textContent = 'Edit Initiative';
+    document.getElementById('modal-sub').textContent   = 'Update the details for this initiative.';
+    document.getElementById('form-submit-btn').textContent = 'Save Changes';
     document.getElementById('task-id').value      = t.id;
     document.getElementById('f-team').value        = t.team;
     document.getElementById('f-owner').value       = t.owner;
     document.getElementById('f-initiative').value  = t.initiative;
     document.getElementById('f-outcome').value     = t.outcome || '';
-    document.getElementById('f-target').value      = t.target || '';
+    document.getElementById('f-target').value      = t.target  || '';
     document.getElementById('f-status').value      = t.status;
-    document.getElementById('f-metric').value      = t.metric || '';
+    document.getElementById('f-metric').value      = t.metric  || '';
     document.getElementById('f-dependencies').value= t.dependencies || '';
     document.getElementById('f-bar-start').value   = t.bar_start;
     document.getElementById('f-bar-end').value     = t.bar_end;
-    document.getElementById('f-bar-color').value   = t.bar_color || '#1565C0';
+    document.getElementById('f-bar-color').value   = t.bar_color || '#4F46E5';
     setBarPickerRange(parseInt(t.bar_start), parseInt(t.bar_end));
   } else {
-    title.textContent = 'Add Initiative';
+    document.getElementById('modal-title').textContent    = 'Add Initiative';
+    document.getElementById('modal-sub').textContent      = 'Fill in the details for this initiative.';
+    document.getElementById('form-submit-btn').textContent = 'Save Initiative';
   }
 
   modal.classList.add('open');
 }
 
-function closeModal()              { document.getElementById('modal').classList.remove('open'); }
-function closeModalOutside(e)      { if (e.target === document.getElementById('modal')) closeModal(); }
+function closeModal()         { document.getElementById('modal').classList.remove('open'); }
+function closeModalOutside(e) { if (e.target === document.getElementById('modal')) closeModal(); }
 
 async function saveTask(e) {
   e.preventDefault();
@@ -238,10 +283,15 @@ async function saveTask(e) {
     is_blocked:   document.getElementById('f-status').value === 'blocked' ? 1 : 0,
   };
 
+  const btn = document.getElementById('form-submit-btn');
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+
   const url    = id ? `${API}/api/tasks/${id}` : `${API}/api/tasks`;
   const method = id ? 'PUT' : 'POST';
   await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 
+  btn.disabled = false;
   closeModal();
   await loadTasks();
   renderGantt();
@@ -250,11 +300,11 @@ async function saveTask(e) {
 // ── Delete ─────────────────────────────────────────────────────────────────
 function openDelete(id, name) {
   deleteTargetId = id;
-  document.getElementById('delete-msg').textContent = `Delete "${name}"? This cannot be undone.`;
+  document.getElementById('delete-msg').textContent = `"${name}"`;
   document.getElementById('delete-modal').classList.add('open');
 }
-function closeDelete()             { document.getElementById('delete-modal').classList.remove('open'); deleteTargetId = null; }
-function closeDeleteOutside(e)     { if (e.target === document.getElementById('delete-modal')) closeDelete(); }
+function closeDelete()          { document.getElementById('delete-modal').classList.remove('open'); deleteTargetId = null; }
+function closeDeleteOutside(e)  { if (e.target === document.getElementById('delete-modal')) closeDelete(); }
 
 async function confirmDelete() {
   if (!deleteTargetId) return;
@@ -268,22 +318,44 @@ async function confirmDelete() {
 let bpDragging = false, bpStart = -1, bpEnd = -1;
 
 function buildBarPicker() {
-  const picker = document.getElementById('bar-picker');
-  const labels = document.getElementById('bar-labels');
+  const picker      = document.getElementById('bar-picker');
+  const labels      = document.getElementById('bar-labels');
+  const monthLabels = document.getElementById('bar-month-labels');
+
+  // Month label row above picker
+  MONTHS.forEach(m => {
+    const count = m.to - m.from + 1;
+    const el = document.createElement('div');
+    el.className = 'bar-month-label';
+    el.style.flex = String(count);
+    el.textContent = m.cls === 'jul' ? 'Jul' : m.cls === 'aug' ? 'Aug' : 'Sep';
+    monthLabels.appendChild(el);
+  });
+
+  // Week cells
   WEEKS.forEach((w, wi) => {
     const cell = document.createElement('div');
     cell.className = 'bp-week';
     cell.dataset.idx = wi;
+    cell.style.background = weekMonth(wi) === 'jul'
+      ? 'rgba(239,246,255,.7)'
+      : weekMonth(wi) === 'aug'
+        ? 'rgba(245,243,255,.7)'
+        : 'rgba(240,253,244,.7)';
 
-    cell.addEventListener('mousedown', () => { bpDragging = true; bpStart = bpEnd = wi; updateBP(); });
+    cell.addEventListener('mousedown', (ev) => {
+      ev.preventDefault();
+      bpDragging = true; bpStart = bpEnd = wi; updateBP();
+    });
     cell.addEventListener('mouseenter', () => { if (bpDragging) { bpEnd = wi; updateBP(); } });
-
     picker.appendChild(cell);
 
+    // Week label
     const lbl = document.createElement('span');
-    lbl.textContent = w.split('–')[0].trim();
+    lbl.textContent = wi + 1;
     labels.appendChild(lbl);
   });
+
   document.addEventListener('mouseup', () => { bpDragging = false; });
 }
 
@@ -295,6 +367,8 @@ function updateBP() {
   });
   document.getElementById('f-bar-start').value = lo;
   document.getElementById('f-bar-end').value   = hi;
+  const selEl = document.getElementById('bp-selection');
+  if (selEl) selEl.textContent = `${WEEKS[lo].split('–')[0].trim()} – ${WEEKS[hi]}`;
 }
 
 function setBarPickerRange(s, e) {
@@ -308,6 +382,8 @@ function resetBarPicker() {
   document.querySelectorAll('.bp-week').forEach(c => c.classList.remove('selected'));
   document.getElementById('f-bar-start').value = -1;
   document.getElementById('f-bar-end').value   = -1;
+  const selEl = document.getElementById('bp-selection');
+  if (selEl) selEl.textContent = 'No range selected';
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────
