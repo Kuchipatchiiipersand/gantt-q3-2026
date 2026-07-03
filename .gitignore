@@ -1,0 +1,3 @@
+node_modules/
+gantt.db
+*.db-journal

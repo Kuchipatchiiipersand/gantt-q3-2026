@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Q3 2026 Gantt Chart</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ── Header ── -->
+<header>
+  <div class="header-left">
+    <h1>Q3 2026 Roadmap</h1>
+    <span class="header-sub">Paynet · PGW · Settlement · Portals · Integrations · DevSecOps</span>
+  </div>
+  <div class="header-right">
+    <div class="legend">
+      <span class="leg-dot" style="background:#388E3C"></span>Done
+      <span class="leg-dot" style="background:#1565C0"></span>Active
+      <span class="leg-dot" style="background:#C62828"></span>Blocked
+      <span class="leg-dot" style="background:#F57F17"></span>Dep. gated
+      <span class="leg-dot" style="background:#9E9E9E"></span>Unscheduled
+    </div>
+    <button class="btn-add" onclick="openModal()">+ Add Initiative</button>
+  </div>
+</header>
+
+<!-- ── Filters ── -->
+<div class="toolbar">
+  <input id="search" type="text" placeholder="🔍  Search initiatives..." oninput="renderGantt()">
+  <select id="filter-team" onchange="renderGantt()">
+    <option value="">All Teams</option>
+  </select>
+  <select id="filter-status" onchange="renderGantt()">
+    <option value="">All Statuses</option>
+    <option value="active">Active</option>
+    <option value="done">Done</option>
+    <option value="blocked">Blocked</option>
+    <option value="pending">Pending</option>
+    <option value="unscheduled">Unscheduled</option>
+  </select>
+  <label class="toggle-label">
+    <input type="checkbox" id="hide-unscheduled" onchange="renderGantt()"> Hide unscheduled
+  </label>
+</div>
+
+<!-- ── Gantt ── -->
+<div class="gantt-outer">
+<div class="gantt-wrap" id="gantt-wrap">
+
+  <!-- Timeline header (sticky) -->
+  <div class="gantt-header" id="gantt-header">
+    <div class="gh-labels">
+      <div class="gh-team">Team</div>
+      <div class="gh-init">Initiative</div>
+      <div class="gh-status">Status</div>
+    </div>
+    <div class="gh-timeline">
+      <div class="gh-months">
+        <div class="gh-month" style="flex:5">JULY 2026</div>
+        <div class="gh-month" style="flex:4">AUGUST 2026</div>
+        <div class="gh-month" style="flex:4">SEPTEMBER 2026</div>
+      </div>
+      <div class="gh-weeks" id="week-headers"></div>
+    </div>
+  </div>
+
+  <!-- Gantt body -->
+  <div id="gantt-body"></div>
+
+</div>
+</div>
+
+<!-- ── Add/Edit Modal ── -->
+<div class="modal-overlay" id="modal" onclick="closeModalOutside(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modal-title">Add Initiative</h2>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <form id="task-form" onsubmit="saveTask(event)">
+      <input type="hidden" id="task-id">
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Team *</label>
+          <select id="f-team" required onchange="updateOwner()">
+            <option value="">Select team...</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Owner</label>
+          <input type="text" id="f-owner" placeholder="Owner name">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Initiative Name *</label>
+        <input type="text" id="f-initiative" required placeholder="e.g. MyDebit TR31">
+      </div>
+
+      <div class="form-group">
+        <label>Outcome Statement</label>
+        <textarea id="f-outcome" rows="2" placeholder="Enable... so that..."></textarea>
+      </div>
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Target Timeline</label>
+          <input type="text" id="f-target" placeholder="e.g. Jul 2026, Target 15 Jul">
+        </div>
+        <div class="form-group">
+          <label>Status</label>
+          <select id="f-status">
+            <option value="active">Active</option>
+            <option value="done">Done</option>
+            <option value="blocked">Blocked</option>
+            <option value="pending">Pending</option>
+            <option value="unscheduled">Unscheduled</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Success Metric</label>
+        <input type="text" id="f-metric" placeholder="How will you measure success?">
+      </div>
+
+      <div class="form-group">
+        <label>Dependencies / Notes</label>
+        <input type="text" id="f-dependencies" placeholder="Depends on..., Blocked by...">
+      </div>
+
+      <div class="form-group">
+        <label>Timeline Bar <span class="label-hint">(drag on chart or set manually)</span></label>
+        <div class="bar-picker" id="bar-picker"></div>
+        <div class="bar-labels" id="bar-labels"></div>
+        <input type="hidden" id="f-bar-start" value="0">
+        <input type="hidden" id="f-bar-end"   value="0">
+        <input type="hidden" id="f-bar-color" value="#1565C0">
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn-secondary" onclick="closeModal()">Cancel</button>
+        <button type="submit" class="btn-primary">Save Initiative</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ── Delete Confirm ── -->
+<div class="modal-overlay" id="delete-modal" onclick="closeDeleteOutside(event)">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <h2>Delete Initiative</h2>
+      <button class="modal-close" onclick="closeDelete()">✕</button>
+    </div>
+    <p id="delete-msg" style="padding:16px 0;color:#555;line-height:1.5"></p>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeDelete()">Cancel</button>
+      <button class="btn-danger" onclick="confirmDelete()">Delete</button>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
