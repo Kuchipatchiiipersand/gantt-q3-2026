@@ -51,10 +51,11 @@ async function boot() {
 }
 
 function buildWeekHeaders() {
+  const todayWk = currentWeekIndex();
   const el = document.getElementById('week-headers');
   WEEKS.forEach((w, i) => {
     const d = document.createElement('div');
-    d.className = `gh-week ${weekMonth(i)}`;
+    d.className = `gh-week ${weekMonth(i)}${i === todayWk ? ' today' : ''}`;
     d.textContent = w;
     el.appendChild(d);
   });
@@ -162,6 +163,7 @@ function renderGantt() {
   const body = document.getElementById('gantt-body');
   body.innerHTML = '';
   let totalRows = 0;
+  const todayWk = currentWeekIndex();
 
   allTeams.forEach(team => {
     const teamName  = team.name;
@@ -180,7 +182,7 @@ function renderGantt() {
     body.appendChild(gh);
 
     tasks.forEach(task => {
-      body.appendChild(buildTaskRow(task, color));
+      body.appendChild(buildTaskRow(task, color, todayWk));
       totalRows++;
     });
   });
@@ -218,7 +220,7 @@ function renderGantt() {
       body.appendChild(pbh);
 
       tasks.forEach(task => {
-        body.appendChild(buildTaskRow(task, color));
+        body.appendChild(buildTaskRow(task, color, todayWk));
         totalRows++;
       });
     });
@@ -239,7 +241,7 @@ function renderGantt() {
   }
 }
 
-function buildTaskRow(task, teamColor) {
+function buildTaskRow(task, teamColor, todayWk = -1) {
   const row = document.createElement('div');
   row.className = 'task-row';
 
@@ -317,6 +319,13 @@ function buildTaskRow(task, teamColor) {
     cb.appendChild(lbl);
   }
 
+  if (todayWk >= 0) {
+    const tl = document.createElement('div');
+    tl.className = 'today-line';
+    tl.style.left = `${todayWk * 70 + 34}px`;
+    cb.appendChild(tl);
+  }
+
   row.appendChild(cb);
   return row;
 }
@@ -352,6 +361,7 @@ function openModal(id = null) {
     document.getElementById('modal-title').textContent     = 'Add Initiative';
     document.getElementById('modal-sub').textContent       = 'Fill in the details. Leave timeline empty to add to Backlog.';
     document.getElementById('form-submit-btn').textContent = 'Save Initiative';
+    document.getElementById('f-status').value = 'unscheduled';
   }
   document.getElementById('modal').classList.add('open');
 }
@@ -775,6 +785,15 @@ function updateBP() {
   document.getElementById('f-bar-end').value   = hi;
   const sel = document.getElementById('bp-selection');
   if (sel) sel.textContent = `${WEEKS[lo].split('–')[0].trim()} – ${WEEKS[hi]}`;
+  // Auto-promote status from Backlog → Active when a bar is drawn
+  const statusSel = document.getElementById('f-status');
+  if (statusSel && statusSel.value === 'unscheduled') statusSel.value = 'active';
+}
+
+function clearTimeline() {
+  resetBarPicker();
+  const statusSel = document.getElementById('f-status');
+  if (statusSel && statusSel.value !== 'done') statusSel.value = 'unscheduled';
 }
 
 function setBarPickerRange(s, e) {

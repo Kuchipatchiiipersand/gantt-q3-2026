@@ -451,6 +451,21 @@ header h1 { font-size: 15px; font-weight: 700; color: #fff; letter-spacing: -.2p
   font-size: 11px; color: var(--text-3); font-style: italic;
 }
 
+/* Today line — vertical red marker across every bar row */
+.today-line {
+  position: absolute; top: 0; bottom: 0;
+  width: 2px; background: #EF4444;
+  z-index: 4; pointer-events: none;
+  opacity: .75;
+}
+
+/* Today column highlight in gantt header */
+.gh-week.today {
+  background: rgba(239,68,68,.18) !important;
+  color: #F87171 !important;
+  font-weight: 700;
+}
+
 /* ── Empty state ── */
 .empty-state {
   text-align: center; padding: 80px 20px;
