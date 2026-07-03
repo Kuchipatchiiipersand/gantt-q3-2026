@@ -108,24 +108,23 @@ function onProjectChange() {
 // Shows ALL developers grouped by project using <optgroup>
 function rebuildOwnerDropdown(selectedProject, currentOwner) {
   const sel = document.getElementById('f-owner');
-  sel.innerHTML = '<option value="">Select developer...</option>';
+  let html = '<option value="">Select developer...</option>';
 
-  // If currentOwner is not in any developer list, add as a standalone option
   const allDevNames = allDevelopers.map(d => d.name);
   if (currentOwner && !allDevNames.includes(currentOwner)) {
-    sel.innerHTML += `<option value="${currentOwner}">${currentOwner}</option>`;
+    html += `<option value="${currentOwner}">${currentOwner}</option>`;
   }
 
-  // Group by project — show all devs
   allTeams.forEach(t => {
     const devs = allDevelopers.filter(d => d.project === t.name);
     if (!devs.length) return;
     const highlight = selectedProject && t.name === selectedProject ? ' ★' : '';
-    sel.innerHTML += `<optgroup label="${t.name}${highlight}">`;
-    devs.forEach(d => { sel.innerHTML += `<option value="${d.name}">${d.name}</option>`; });
-    sel.innerHTML += `</optgroup>`;
+    html += `<optgroup label="${t.name}${highlight}">`;
+    devs.forEach(d => { html += `<option value="${d.name}">${d.name}</option>`; });
+    html += `</optgroup>`;
   });
 
+  sel.innerHTML = html;
   sel.value = currentOwner || '';
 }
 
