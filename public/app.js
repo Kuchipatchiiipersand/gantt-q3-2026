@@ -144,16 +144,16 @@ function renderGantt() {
   body.innerHTML = '';
   let totalRows = 0;
 
-  allTeams.forEach(teamName => {
-    const devMap  = byTeam[teamName] || {};
-    const teamMeta = allTeams.find(t => t.name === teamName);
-    const color    = teamMeta?.color || '#64748B';
+  allTeams.forEach(team => {
+    const teamName = team.name;
+    const devMap   = byTeam[teamName] || {};
+    const color    = team.color || '#64748B';
 
     // Ordered developers: listed first, then unlisted owners
-    const listedDevs  = allDevelopers.filter(d => d.project === teamName).map(d => d.name);
-    const taskDevs    = Object.keys(devMap);
-    const devOrder    = [...listedDevs.filter(n => taskDevs.includes(n)),
-                         ...taskDevs.filter(n => !listedDevs.includes(n))];
+    const listedDevs = allDevelopers.filter(d => d.project === teamName).map(d => d.name);
+    const taskDevs   = Object.keys(devMap);
+    const devOrder   = [...listedDevs.filter(n => taskDevs.includes(n)),
+                        ...taskDevs.filter(n => !listedDevs.includes(n))];
     if (!devOrder.length) return;
 
     const projTotal = devOrder.reduce((s, d) => s + (devMap[d]?.length || 0), 0);
@@ -165,7 +165,7 @@ function renderGantt() {
     gh.innerHTML = `
       <div class="tgh-dot" style="background:${color}"></div>
       <span class="tgh-name">${teamName}</span>
-      <span class="tgh-owner">${teamMeta?.owner || ''}</span>
+      <span class="tgh-owner">${team.owner || ''}</span>
       <span class="tgh-count">${projTotal}</span>`;
     body.appendChild(gh);
 
@@ -206,10 +206,10 @@ function renderGantt() {
     bh.innerHTML = `<span class="backlog-icon">📋</span> Backlog <span class="tgh-count">${backlog.length}</span>`;
     body.appendChild(bh);
 
-    allTeams.forEach(teamName => {
-      const devMap   = backlogByTeam[teamName] || {};
-      const teamMeta = allTeams.find(t => t.name === teamName);
-      const color    = teamMeta?.color || '#64748B';
+    allTeams.forEach(team => {
+      const teamName   = team.name;
+      const devMap     = backlogByTeam[teamName] || {};
+      const color      = team.color || '#64748B';
       const listedDevs = allDevelopers.filter(d => d.project === teamName).map(d => d.name);
       const taskDevs   = Object.keys(devMap);
       const devOrder   = [...listedDevs.filter(n => taskDevs.includes(n)),
