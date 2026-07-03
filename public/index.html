@@ -51,18 +51,21 @@
 <div class="gantt-outer">
 <div class="gantt-wrap" id="gantt-wrap">
 
-  <!-- Timeline header (sticky) -->
+  <!-- Column + timeline header — sticky top:0 within gantt-outer -->
   <div class="gantt-header" id="gantt-header">
-    <div class="gh-labels">
-      <div class="gh-team">Team</div>
-      <div class="gh-init">Initiative</div>
-      <div class="gh-status">Status</div>
+    <!-- Row 1: month labels -->
+    <div class="gh-months">
+      <div class="gh-month-spacer"></div>
+      <div class="gh-month" style="flex:5">JULY 2026</div>
+      <div class="gh-month" style="flex:4">AUGUST 2026</div>
+      <div class="gh-month" style="flex:4">SEPTEMBER 2026</div>
     </div>
-    <div class="gh-timeline">
-      <div class="gh-months">
-        <div class="gh-month" style="flex:5">JULY 2026</div>
-        <div class="gh-month" style="flex:4">AUGUST 2026</div>
-        <div class="gh-month" style="flex:4">SEPTEMBER 2026</div>
+    <!-- Row 2: column labels + week labels -->
+    <div class="gh-cols">
+      <div class="gh-label-group">
+        <div class="gh-col gh-col-team">Team</div>
+        <div class="gh-col gh-col-init">Initiative</div>
+        <div class="gh-col gh-col-status">Status</div>
       </div>
       <div class="gh-weeks" id="week-headers"></div>
     </div>
