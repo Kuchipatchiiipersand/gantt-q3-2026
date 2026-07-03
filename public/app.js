@@ -165,7 +165,6 @@ function renderGantt() {
     gh.innerHTML = `
       <div class="tgh-dot" style="background:${color}"></div>
       <span class="tgh-name">${teamName}</span>
-      <span class="tgh-owner">${team.owner || ''}</span>
       <span class="tgh-count">${projTotal}</span>`;
     body.appendChild(gh);
 
