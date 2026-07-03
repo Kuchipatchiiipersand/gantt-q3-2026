@@ -232,8 +232,8 @@ async function saveTask(e) {
     status:       document.getElementById('f-status').value,
     metric:       document.getElementById('f-metric').value,
     dependencies: document.getElementById('f-dependencies').value,
-    bar_start:    parseInt(document.getElementById('f-bar-start').value) || -1,
-    bar_end:      parseInt(document.getElementById('f-bar-end').value)   || -1,
+    bar_start:    parseInt(document.getElementById('f-bar-start').value),
+    bar_end:      parseInt(document.getElementById('f-bar-end').value),
     bar_color:    document.getElementById('f-bar-color').value,
     is_blocked:   document.getElementById('f-status').value === 'blocked' ? 1 : 0,
   };
