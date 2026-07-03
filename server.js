@@ -207,6 +207,9 @@ async function seedDevelopers() {
   console.log(`Seeded ${devs.length} developers.`);
 }
 
+// No-cache for all API responses so reloads after mutations always see fresh data
+app.use('/api', (req, res, next) => { res.setHeader('Cache-Control', 'no-store'); next(); });
+
 // ── API: Teams / Projects ──────────────────────────────────────────────────
 app.get('/api/teams', async (req, res) => {
   try { res.json(await db.all('SELECT * FROM teams ORDER BY id')); }
@@ -331,13 +334,14 @@ app.post('/api/tasks', async (req, res) => {
 
 app.put('/api/tasks/:id', async (req, res) => {
   try {
-    const { initiative, owner='', outcome='', target='', metric='', dependencies='',
+    const { team, initiative, owner='', outcome='', target='', metric='', dependencies='',
             status='active', bar_start=-1, bar_end=-1, bar_color='#4F46E5', is_blocked=0 } = req.body;
+    const now = process.env.DATABASE_URL ? 'NOW()' : "datetime('now')";
     const row = await db.get(
-      `UPDATE tasks SET initiative=$1,owner=$2,outcome=$3,target=$4,metric=$5,dependencies=$6,
-       status=$7,bar_start=$8,bar_end=$9,bar_color=$10,is_blocked=$11,updated_at=NOW()
-       WHERE id=$12 RETURNING *`,
-      [initiative,owner,outcome,target,metric,dependencies,status,bar_start,bar_end,bar_color,is_blocked?1:0,req.params.id]
+      `UPDATE tasks SET team=$1,initiative=$2,owner=$3,outcome=$4,target=$5,metric=$6,dependencies=$7,
+       status=$8,bar_start=$9,bar_end=$10,bar_color=$11,is_blocked=$12,updated_at=${now}
+       WHERE id=$13 RETURNING *`,
+      [team,initiative,owner,outcome,target,metric,dependencies,status,bar_start,bar_end,bar_color,is_blocked?1:0,req.params.id]
     );
     res.json(row);
   } catch(e) { res.status(500).json({ error: e.message }); }

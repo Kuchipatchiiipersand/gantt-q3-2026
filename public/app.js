@@ -60,7 +60,7 @@ function buildWeekHeaders() {
   });
 }
 
-async function loadTasks()      { const r = await fetch(`${API}/api/tasks`);      allTasks      = await r.json(); }
+async function loadTasks()      { const r = await fetch(`${API}/api/tasks?_=${Date.now()}`);      allTasks      = await r.json(); }
 async function loadTeams()      { const r = await fetch(`${API}/api/teams`);      allTeams      = await r.json(); }
 async function loadDevelopers() { const r = await fetch(`${API}/api/developers`); allDevelopers = await r.json(); }
 
@@ -461,7 +461,6 @@ function renderProjectList() {
         <span class="dev-avatar" style="background:${t.color}">${t.name[0]}</span>
         <div style="flex:1">
           <div class="dev-name">${t.name}</div>
-          ${t.owner ? `<div class="dev-sub">Lead: ${t.owner}</div>` : ''}
         </div>
         <button class="btn-icon btn-edit-sm" title="Edit" onclick="editProject(${t.id})">✎</button>
         <button class="btn-del-sm" title="Delete" onclick="deleteProject(${t.id}, '${t.name.replace(/'/g,"\\'")}')">✕</button>
@@ -476,7 +475,6 @@ function editProject(id) {
   if (!t) return;
   document.getElementById('proj-editing-id').value = id;
   document.getElementById('proj-name').value        = t.name;
-  document.getElementById('proj-lead').value        = t.owner || '';
   selectColorSwatch(t.color);
   document.getElementById('proj-form-title').textContent  = 'Edit Project';
   document.getElementById('proj-submit-btn').textContent  = 'Update';
@@ -488,7 +486,6 @@ function editProject(id) {
 function cancelProjectEdit() {
   document.getElementById('proj-editing-id').value           = '';
   document.getElementById('proj-name').value                  = '';
-  document.getElementById('proj-lead').value                  = '';
   document.getElementById('proj-form-title').textContent      = 'Add Project';
   document.getElementById('proj-submit-btn').textContent      = 'Add';
   document.getElementById('proj-cancel-edit').style.display   = 'none';
@@ -499,7 +496,6 @@ function cancelProjectEdit() {
 async function submitProject() {
   const editingId = document.getElementById('proj-editing-id').value;
   const name   = document.getElementById('proj-name').value.trim();
-  const owner  = document.getElementById('proj-lead').value.trim();
   const errEl  = document.getElementById('proj-add-error');
   errEl.style.display = 'none';
   if (!name) { showProjError('Please enter a project name.'); return; }
@@ -507,7 +503,7 @@ async function submitProject() {
   const url    = editingId ? `${API}/api/teams/${editingId}` : `${API}/api/teams`;
   const method = editingId ? 'PUT' : 'POST';
   const res    = await fetch(url, { method, headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, owner, color: selectedProjColor }) });
+    body: JSON.stringify({ name, color: selectedProjColor }) });
   const data   = await res.json();
   if (!res.ok) { showProjError(data.error || 'Failed.'); return; }
 
