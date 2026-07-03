@@ -1,31 +1,77 @@
 const API = '';
 
-const WEEKS = [
-  'Jul 1–6','Jul 7–13','Jul 14–20','Jul 21–27','Jul 28–31',
-  'Aug 4–10','Aug 11–17','Aug 18–24','Aug 25–31',
-  'Sep 1–7','Sep 8–14','Sep 15–21','Sep 22–30'
-];
-const NW = WEEKS.length;
-
-const MONTHS = [
-  { cls: 'jul', label: 'Jul', from: 0, to: 4  },
-  { cls: 'aug', label: 'Aug', from: 5, to: 8  },
-  { cls: 'sep', label: 'Sep', from: 9, to: 12 },
+// ── Config / Settings ─────────────────────────────────────────────────────
+const MONTH_PALETTE = [
+  { header: '#60A5FA', bg: 'rgba(239,246,255,.6)', alt: 'rgba(219,234,254,.35)', picker: 'rgba(239,246,255,.7)' },
+  { header: '#A78BFA', bg: 'rgba(245,243,255,.6)', alt: 'rgba(237,233,254,.35)', picker: 'rgba(245,243,255,.7)' },
+  { header: '#34D399', bg: 'rgba(240,253,244,.6)', alt: 'rgba(220,252,231,.35)', picker: 'rgba(240,253,244,.7)' },
 ];
 
-function weekMonth(i) {
-  return MONTHS.find(m => i >= m.from && i <= m.to)?.cls ?? 'jul';
+const CFG_KEY = 'gantt-config';
+const DEFAULT_CFG = {
+  title:     'Q3 2026 Roadmap',
+  subtitle:  'Jul – Sep 2026 · Paynet · PGW · Settlement · Portals · Integrations · DevSecOps',
+  startDate: '2026-07-01',
+  endDate:   '2026-09-30',
+};
+let cfg = { ...DEFAULT_CFG, ...JSON.parse(localStorage.getItem(CFG_KEY) || '{}') };
+
+let WEEKS  = [];
+let MONTHS = [];
+let NW     = 0;
+
+function parseDate(str) {
+  const [y, m, d] = str.split('-').map(Number);
+  return new Date(y, m - 1, d);
 }
 
-// Determine which week index "today" falls in (for workload view)
+function computeWeeks() {
+  WEEKS = []; MONTHS = [];
+  const start = parseDate(cfg.startDate);
+  const end   = parseDate(cfg.endDate);
+  const monthMap = new Map();
+  let cur = new Date(start), wi = 0;
+
+  while (cur <= end) {
+    const wEnd = new Date(cur);
+    wEnd.setDate(wEnd.getDate() + 6);
+    if (wEnd > end) wEnd.setTime(end.getTime());
+
+    const mKey   = `${cur.getFullYear()}-${cur.getMonth()}`;
+    const mShort = cur.toLocaleString('en', { month: 'short' });
+    const mFull  = cur.toLocaleString('en', { month: 'long', year: 'numeric' }).toUpperCase();
+    const eShort = wEnd.toLocaleString('en', { month: 'short' });
+
+    WEEKS.push(mShort === eShort
+      ? `${mShort} ${cur.getDate()}–${wEnd.getDate()}`
+      : `${mShort} ${cur.getDate()}–${eShort} ${wEnd.getDate()}`);
+
+    if (!monthMap.has(mKey)) {
+      monthMap.set(mKey, { label: mFull, short: mShort, from: wi, to: wi });
+    } else {
+      monthMap.get(mKey).to = wi;
+    }
+    cur.setDate(cur.getDate() + 7);
+    wi++;
+  }
+
+  MONTHS = [...monthMap.values()];
+  NW = WEEKS.length;
+  document.documentElement.style.setProperty('--nw', NW);
+}
+
+function weekMonthIdx(i) {
+  return MONTHS.findIndex(m => i >= m.from && i <= m.to);
+}
+
 function currentWeekIndex() {
-  const now = new Date();
-  const m = now.getMonth() + 1, d = now.getDate(), y = now.getFullYear();
-  if (y !== 2026) return 0;
-  if (m === 7) { if(d<=6)return 0; if(d<=13)return 1; if(d<=20)return 2; if(d<=27)return 3; return 4; }
-  if (m === 8) { if(d<=10)return 5; if(d<=17)return 6; if(d<=24)return 7; return 8; }
-  if (m === 9) { if(d<=7)return 9; if(d<=14)return 10; if(d<=21)return 11; return 12; }
-  return -1;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const start = parseDate(cfg.startDate);
+  const diffMs = today - start;
+  if (diffMs < 0) return -1;
+  const wi = Math.floor(diffMs / (7 * 24 * 3600 * 1000));
+  return wi < NW ? wi : -1;
 }
 
 const STATUS_META = {
@@ -41,21 +87,76 @@ let allTeams      = [];
 let allDevelopers = [];
 let deleteTargetId = null;
 
+// ── Settings ──────────────────────────────────────────────────────────────
+function applyConfigToDOM() {
+  document.getElementById('app-title').textContent    = cfg.title;
+  document.getElementById('app-subtitle').textContent = cfg.subtitle;
+  document.title = cfg.title;
+}
+
+function openSettings() {
+  document.getElementById('cfg-title').value    = cfg.title;
+  document.getElementById('cfg-subtitle').value = cfg.subtitle;
+  document.getElementById('cfg-start').value    = cfg.startDate;
+  document.getElementById('cfg-end').value      = cfg.endDate;
+  document.getElementById('settings-modal').classList.add('open');
+}
+function closeSettings()         { document.getElementById('settings-modal').classList.remove('open'); }
+function closeSettingsOutside(e) { if (e.target === document.getElementById('settings-modal')) closeSettings(); }
+
+function saveSettings() {
+  const title     = document.getElementById('cfg-title').value.trim();
+  const subtitle  = document.getElementById('cfg-subtitle').value.trim();
+  const startDate = document.getElementById('cfg-start').value;
+  const endDate   = document.getElementById('cfg-end').value;
+  if (!title || !startDate || !endDate) { alert('Title and both dates are required.'); return; }
+  if (startDate >= endDate) { alert('End date must be after start date.'); return; }
+  cfg = { title, subtitle, startDate, endDate };
+  localStorage.setItem(CFG_KEY, JSON.stringify(cfg));
+  applyConfigToDOM();
+  computeWeeks();
+  buildMonthHeaders();
+  buildWeekHeaders();
+  buildBarPicker();
+  resetBarPicker();
+  renderGantt();
+  closeSettings();
+}
+
 // ── Boot ──────────────────────────────────────────────────────────────────
 async function boot() {
+  computeWeeks();
+  buildMonthHeaders();
   buildWeekHeaders();
+  applyConfigToDOM();
   await Promise.all([loadTeams(), loadTasks(), loadDevelopers()]);
   populateProjectSelects();
   buildBarPicker();
   renderGantt();
 }
 
+function buildMonthHeaders() {
+  const row = document.getElementById('gh-months-row');
+  while (row.children.length > 1) row.removeChild(row.lastChild);
+  MONTHS.forEach((m, i) => {
+    const div = document.createElement('div');
+    div.className = 'gh-month';
+    div.style.flex = String(m.to - m.from + 1);
+    div.style.color = MONTH_PALETTE[i % 3].header;
+    div.textContent = m.label;
+    row.appendChild(div);
+  });
+}
+
 function buildWeekHeaders() {
   const todayWk = currentWeekIndex();
   const el = document.getElementById('week-headers');
+  el.innerHTML = '';
   WEEKS.forEach((w, i) => {
+    const mi = weekMonthIdx(i);
     const d = document.createElement('div');
-    d.className = `gh-week ${weekMonth(i)}${i === todayWk ? ' today' : ''}`;
+    d.className = `gh-week${i === todayWk ? ' today' : ''}`;
+    if (i !== todayWk) d.style.color = MONTH_PALETTE[(mi >= 0 ? mi : 0) % 3].header;
     d.textContent = w;
     el.appendChild(d);
   });
@@ -284,10 +385,12 @@ function buildTaskRow(task, teamColor, todayWk = -1) {
   cb.style.width = `${NW * 70}px`;
 
   WEEKS.forEach((_, wi) => {
-    const mth   = weekMonth(wi);
-    const local = wi - MONTHS.find(m => m.cls === mth).from;
+    const mi      = weekMonthIdx(wi);
+    const palette = MONTH_PALETTE[(mi >= 0 ? mi : 0) % 3];
+    const local   = wi - (mi >= 0 ? MONTHS[mi].from : 0);
     const bg = document.createElement('div');
-    bg.className = `week-bg ${mth}${local % 2 === 1 ? ' alt' : ''}`;
+    bg.className = 'week-bg';
+    bg.style.background = local % 2 === 1 ? palette.alt : palette.bg;
     bg.style.left  = `${wi * 70}px`;
     bg.style.width = '70px';
     cb.appendChild(bg);
@@ -746,27 +849,32 @@ function renderWorkload(todayWk) {
 }
 
 // ── Bar Picker ─────────────────────────────────────────────────────────────
-let bpDragging = false, bpStart = -1, bpEnd = -1;
+let bpDragging = false, bpStart = -1, bpEnd = -1, _bpMouseUpAdded = false;
 
 function buildBarPicker() {
   const picker      = document.getElementById('bar-picker');
   const labels      = document.getElementById('bar-labels');
   const monthLabels = document.getElementById('bar-month-labels');
 
-  MONTHS.forEach(m => {
+  picker.innerHTML = '';
+  labels.innerHTML = '';
+  monthLabels.innerHTML = '';
+
+  MONTHS.forEach((m, mi) => {
     const el = document.createElement('div');
     el.className = 'bar-month-label';
     el.style.flex = String(m.to - m.from + 1);
-    el.textContent = m.label;
+    el.textContent = m.short;
     monthLabels.appendChild(el);
   });
 
   WEEKS.forEach((w, wi) => {
+    const mi = weekMonthIdx(wi);
+    const palette = MONTH_PALETTE[(mi >= 0 ? mi : 0) % 3];
     const cell = document.createElement('div');
     cell.className = 'bp-week';
     cell.dataset.idx = wi;
-    const mth = weekMonth(wi);
-    cell.style.background = mth === 'jul' ? 'rgba(239,246,255,.7)' : mth === 'aug' ? 'rgba(245,243,255,.7)' : 'rgba(240,253,244,.7)';
+    cell.style.background = palette.picker;
     cell.addEventListener('mousedown', ev => { ev.preventDefault(); bpDragging = true; bpStart = bpEnd = wi; updateBP(); });
     cell.addEventListener('mouseenter', () => { if (bpDragging) { bpEnd = wi; updateBP(); } });
     picker.appendChild(cell);
@@ -775,7 +883,10 @@ function buildBarPicker() {
     labels.appendChild(lbl);
   });
 
-  document.addEventListener('mouseup', () => { bpDragging = false; });
+  if (!_bpMouseUpAdded) {
+    document.addEventListener('mouseup', () => { bpDragging = false; });
+    _bpMouseUpAdded = true;
+  }
 }
 
 function updateBP() {

@@ -6,7 +6,7 @@
 <title>Q3 2026 Roadmap</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=20260703270003">
+<link rel="stylesheet" href="style.css?v=20260703270004">
 </head>
 <body>
 
@@ -15,8 +15,8 @@
   <div class="header-left">
     <div class="header-logo">G</div>
     <div class="header-title-group">
-      <h1>Q3 2026 Roadmap</h1>
-      <div class="header-sub">Jul – Sep 2026 &nbsp;·&nbsp; Paynet &nbsp;·&nbsp; PGW &nbsp;·&nbsp; Settlement &nbsp;·&nbsp; Portals &nbsp;·&nbsp; Integrations &nbsp;·&nbsp; DevSecOps</div>
+      <h1 id="app-title">Q3 2026 Roadmap</h1>
+      <div class="header-sub" id="app-subtitle">Jul – Sep 2026 &nbsp;·&nbsp; Paynet &nbsp;·&nbsp; PGW &nbsp;·&nbsp; Settlement &nbsp;·&nbsp; Portals &nbsp;·&nbsp; Integrations &nbsp;·&nbsp; DevSecOps</div>
     </div>
   </div>
   <div class="header-right">
@@ -64,6 +64,7 @@
   <div class="toolbar-sep"></div>
   <button class="btn-toolbar" onclick="openWorkloadModal()">📊 Workload</button>
   <button class="btn-toolbar" onclick="openManageModal('projects')">⚙ Manage</button>
+  <button class="btn-toolbar" onclick="openSettings()">⚙ Settings</button>
   <div class="toolbar-stats" id="toolbar-stats"></div>
 </div>
 
@@ -72,11 +73,8 @@
 <div class="gantt-wrap" id="gantt-wrap">
 
   <div class="gantt-header" id="gantt-header">
-    <div class="gh-months">
+    <div class="gh-months" id="gh-months-row">
       <div class="gh-month-spacer"></div>
-      <div class="gh-month jul" style="flex:5">JULY 2026</div>
-      <div class="gh-month aug" style="flex:4">AUGUST 2026</div>
-      <div class="gh-month sep" style="flex:4">SEPTEMBER 2026</div>
     </div>
     <div class="gh-cols">
       <div class="gh-label-group">
@@ -280,6 +278,45 @@
   </div>
 </div>
 
-<script src="app.js?v=20260703270003"></script>
+<!-- ── Settings Modal ── -->
+<div class="modal-overlay" id="settings-modal" onclick="closeSettingsOutside(event)">
+  <div class="modal" style="width:min(480px,100%)">
+    <div class="modal-header">
+      <div><h2>Settings</h2><p>Configure your roadmap title and date range.</p></div>
+      <button class="modal-close" onclick="closeSettings()">✕</button>
+    </div>
+    <div class="form-section">
+      <div class="form-section-title">Display</div>
+      <div class="form-group">
+        <label>Title</label>
+        <input type="text" id="cfg-title" placeholder="e.g. Q3 2026 Roadmap">
+      </div>
+      <div class="form-group">
+        <label>Subtitle <span class="label-hint">— shown below the title</span></label>
+        <input type="text" id="cfg-subtitle" placeholder="e.g. Jul – Sep 2026 · Team A · Team B">
+      </div>
+    </div>
+    <div class="form-section">
+      <div class="form-section-title">Timeline Range</div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Start Date</label>
+          <input type="date" id="cfg-start">
+        </div>
+        <div class="form-group">
+          <label>End Date</label>
+          <input type="date" id="cfg-end">
+        </div>
+      </div>
+      <p style="font-size:11px;color:var(--text-3);margin-top:2px">Weeks are generated automatically. Changing the range reinterprets existing bar positions relative to the new start date.</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeSettings()">Cancel</button>
+      <button class="btn-primary" onclick="saveSettings()">Apply</button>
+    </div>
+  </div>
+</div>
+
+<script src="app.js?v=20260703270004"></script>
 </body>
 </html>

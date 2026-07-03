@@ -197,7 +197,7 @@ header h1 { font-size: 15px; font-weight: 700; color: #fff; letter-spacing: -.2p
 }
 
 .gantt-wrap {
-  min-width: calc(var(--label-w) + var(--week-w) * 13 + 2px);
+  min-width: calc(var(--label-w) + var(--week-w) * var(--nw, 13) + 2px);
   border-radius: var(--radius-lg);
   overflow: hidden;
   box-shadow: var(--shadow-lg);
