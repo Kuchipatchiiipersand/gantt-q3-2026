@@ -1511,6 +1511,15 @@ kbd {
   flex-shrink: 0;
 }
 
+/* ── Mobile bar picker toggle ── */
+#bar-section-mobile { display: none; }
+#bar-section-desktop { display: block; }
+.mobile-bp-hint { font-size: 11px; color: var(--text-3); margin-top: 6px; }
+
+/* ── Mobile filter button (hidden on desktop) ── */
+.mobile-filter-btn { display: none; }
+.toolbar-filters   { display: contents; } /* desktop: behave as if wrapper isn't there */
+
 /* ══════════════════════════════════════════════
    MOBILE BOTTOM NAV + FAB (hidden on desktop)
 ══════════════════════════════════════════════ */
@@ -1570,6 +1579,31 @@ kbd {
   /* Show mobile chrome */
   .mobile-bottom-nav { display: flex; }
   .mobile-fab        { display: flex; }
+  body.view-kanban .mobile-fab { display: none; }
+
+  /* Filter button */
+  .mobile-filter-btn {
+    display: flex; align-items: center; gap: 5px;
+    padding: 0 11px; height: 34px; border-radius: 6px;
+    border: 1px solid var(--border); background: var(--surface);
+    font-size: 12px; color: var(--text-2); cursor: pointer;
+    flex-shrink: 0; white-space: nowrap;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .mobile-filter-btn.filter-active {
+    border-color: var(--accent); background: #EEF2FF; color: var(--accent);
+  }
+  .mobile-filter-badge {
+    background: var(--accent); color: #fff;
+    font-size: 9px; font-weight: 700;
+    border-radius: 99px; padding: 1px 5px;
+    display: none; line-height: 1.4;
+  }
+  .mobile-filter-btn.filter-active .mobile-filter-badge { display: inline; }
+
+  /* Bar picker: desktop hidden, mobile shown */
+  #bar-section-desktop { display: none; }
+  #bar-section-mobile  { display: block; }
 
   /* ── Header ── */
   header { padding: 0 16px; height: var(--header-h); }
@@ -1584,7 +1618,7 @@ kbd {
   .sidebar  { display: none; }
   .app-body { flex-direction: column; }
   .main-area {
-    height: calc(100dvh - var(--header-h) - 60px);
+    height: calc(100dvh - var(--header-h) - 60px - env(safe-area-inset-bottom));
     overflow: hidden;
     display: flex; flex-direction: column;
   }
@@ -1595,9 +1629,12 @@ kbd {
     flex-wrap: wrap; gap: 6px; flex-shrink: 0;
   }
   .toolbar-sep    { display: none; }
-  .search-wrap    { flex: 1 1 100%; order: -1; }
-  .select-wrap    { flex: 1 1 calc(33% - 6px); min-width: 80px; }
-  .toolbar-stats  { font-size: 11px; order: 10; width: 100%; }
+  .search-wrap    { flex: 1; order: 0; }
+  .mobile-filter-btn { order: 1; }
+  .toolbar-filters   { order: 2; width: 100%; display: none; flex-wrap: wrap; gap: 6px; }
+  .toolbar.filters-open .toolbar-filters { display: flex; }
+  .select-wrap    { flex: 1 1 calc(50% - 6px); min-width: 90px; }
+  .toolbar-stats  { font-size: 11px; order: 3; width: 100%; }
   .shortcuts-hint { display: none; }
 
   /* ── Gantt ── */
@@ -1619,7 +1656,7 @@ kbd {
   .kanban-col {
     flex: none; width: 100%; max-height: none;
   }
-  .kanban-cards { max-height: 320px; }
+  .kanban-cards { max-height: none; }
 
   /* ── Dashboard ── */
   .dashboard-body         { padding: 12px 14px 80px; }

@@ -156,6 +156,7 @@ function saveSettings() {
   buildMonthHeaders();
   buildWeekHeaders();
   buildBarPicker();
+  buildMobileBarPicker();
   resetBarPicker();
   renderGantt();
   closeSettings();
@@ -192,6 +193,14 @@ function updateFilterBadges() {
   document.getElementById('filter-status').closest('.select-wrap').classList.toggle('filter-active', !!stat);
   const clearBtn = document.getElementById('btn-clear-filters');
   if (clearBtn) clearBtn.style.display = (proj || dev || stat) ? 'flex' : 'none';
+  // Mobile filter button badge
+  const activeCount = [proj, dev, stat].filter(Boolean).length;
+  const mBtn = document.getElementById('mobile-filter-btn');
+  if (mBtn) {
+    mBtn.classList.toggle('filter-active', activeCount > 0);
+    const badge = document.getElementById('mobile-filter-badge');
+    if (badge) badge.textContent = activeCount > 0 ? activeCount : '';
+  }
 }
 
 function clearFilters() {
@@ -274,8 +283,14 @@ async function boot() {
   await Promise.all([loadTeams(), loadTasks(), loadDevelopers()]);
   populateProjectSelects();
   buildBarPicker();
+  buildMobileBarPicker();
   updateFilterBadges();
-  renderGantt();
+  // Default to Kanban on mobile — Gantt requires horizontal scroll and is hard to use
+  if (window.innerWidth <= 768) {
+    switchView('kanban');
+  } else {
+    renderGantt();
+  }
 }
 
 function buildMonthHeaders() {
@@ -382,6 +397,7 @@ function renderActiveView() {
 
 function switchView(view) {
   currentView = view;
+  document.body.className = `view-${view}`;
   ['gantt','kanban','dashboard'].forEach(v => {
     document.getElementById(`view-${v}`).style.display = v === view ? (v === 'gantt' ? 'block' : 'flex') : 'none';
     document.getElementById(`vbtn-${v}`).classList.toggle('active', v === view);
@@ -1146,6 +1162,7 @@ function openModal(id = null, defaultStatus = null) {
     document.getElementById('f-milestone').checked  = !!parseInt(t.is_milestone);
     rebuildOwnerDropdown(t.team, t.owner);
     setBarPickerRange(parseInt(t.bar_start), parseInt(t.bar_end));
+    syncMobilePicker(parseInt(t.bar_start), parseInt(t.bar_end));
   } else {
     document.getElementById('modal-title').textContent     = 'Add Initiative';
     document.getElementById('modal-sub').textContent       = 'Fill in the details. Leave timeline empty to add to Backlog.';
@@ -1556,6 +1573,54 @@ function renderWorkload(todayWk) {
 }
 
 // ── Bar Picker ─────────────────────────────────────────────────────────────
+// ── Mobile filter toggle ──────────────────────────────────────────────────
+function toggleMobileFilters() {
+  document.querySelector('.toolbar').classList.toggle('filters-open');
+}
+
+// ── Mobile bar picker (week selects) ─────────────────────────────────────
+function buildMobileBarPicker() {
+  const startSel = document.getElementById('bp-mobile-start');
+  const endSel   = document.getElementById('bp-mobile-end');
+  if (!startSel || !endSel) return;
+  const base = '<option value="-1">— No date (Backlog) —</option>';
+  const opts  = WEEKS.map((w, i) => `<option value="${i}">W${i + 1} · ${w}</option>`).join('');
+  startSel.innerHTML = base + opts;
+  endSel.innerHTML   = base + opts;
+}
+
+function updateMobilePicker() {
+  const s = parseInt(document.getElementById('bp-mobile-start').value);
+  const e = parseInt(document.getElementById('bp-mobile-end').value);
+  if (s >= 0 && e >= 0) {
+    const lo = Math.min(s, e), hi = Math.max(s, e);
+    document.getElementById('bp-mobile-start').value = lo;
+    document.getElementById('bp-mobile-end').value   = hi;
+    document.getElementById('f-bar-start').value = lo;
+    document.getElementById('f-bar-end').value   = hi;
+    const hint = document.getElementById('mobile-bp-hint');
+    if (hint) hint.textContent = `${WEEKS[lo]} – ${WEEKS[hi]}`;
+    const statusSel = document.getElementById('f-status');
+    if (statusSel && statusSel.value === 'unscheduled') statusSel.value = 'active';
+  } else {
+    document.getElementById('f-bar-start').value = -1;
+    document.getElementById('f-bar-end').value   = -1;
+    const hint = document.getElementById('mobile-bp-hint');
+    if (hint) hint.textContent = 'No range selected — will go to Backlog';
+  }
+}
+
+function syncMobilePicker(s, e) {
+  const startSel = document.getElementById('bp-mobile-start');
+  const endSel   = document.getElementById('bp-mobile-end');
+  if (startSel) startSel.value = s >= 0 ? s : -1;
+  if (endSel)   endSel.value   = e >= 0 ? e : -1;
+  if (s >= 0 && e >= 0) {
+    const hint = document.getElementById('mobile-bp-hint');
+    if (hint) hint.textContent = `${WEEKS[s]} – ${WEEKS[e]}`;
+  }
+}
+
 let bpDragging = false, bpStart = -1, bpEnd = -1, _bpMouseUpAdded = false, _bpTouchEndAdded = false;
 
 function buildBarPicker() {
@@ -1641,6 +1706,9 @@ function resetBarPicker() {
   document.getElementById('f-bar-end').value   = -1;
   const sel = document.getElementById('bp-selection');
   if (sel) sel.textContent = 'No range selected — will go to Backlog';
+  syncMobilePicker(-1, -1);
+  const hint = document.getElementById('mobile-bp-hint');
+  if (hint) hint.textContent = 'No range selected — will go to Backlog';
 }
 
 boot();

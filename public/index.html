@@ -10,7 +10,7 @@
 <title>Q3 2026 Roadmap</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=20260704270005">
+<link rel="stylesheet" href="style.css?v=20260704270006">
 </head>
 <body>
 
@@ -91,29 +91,34 @@
     <input id="search" type="text" placeholder="Search..." oninput="renderActiveView()">
   </div>
   <div class="toolbar-sep"></div>
-  <div class="select-wrap">
-    <select id="filter-project" onchange="renderActiveView();updateFilterBadges()">
-      <option value="">All Projects</option>
-    </select>
-  </div>
-  <div class="select-wrap">
-    <select id="filter-dev" onchange="renderActiveView();updateFilterBadges()">
-      <option value="">All Developers</option>
-    </select>
-  </div>
-  <div class="select-wrap">
-    <select id="filter-status" onchange="renderActiveView();updateFilterBadges()">
-      <option value="">All Statuses</option>
-      <option value="active">Active</option>
-      <option value="done">Done</option>
-      <option value="blocked">Blocked</option>
-      <option value="pending">Pending</option>
-      <option value="unscheduled">Backlog</option>
-    </select>
-  </div>
-  <button class="btn-clear-filters" id="btn-clear-filters" onclick="clearFilters()" style="display:none">
-    ✕ Clear
+  <button class="mobile-filter-btn" id="mobile-filter-btn" onclick="toggleMobileFilters()">
+    <span>⚙</span> Filters<span class="mobile-filter-badge" id="mobile-filter-badge"></span>
   </button>
+  <div class="toolbar-filters" id="toolbar-filters">
+    <div class="select-wrap">
+      <select id="filter-project" onchange="renderActiveView();updateFilterBadges()">
+        <option value="">All Projects</option>
+      </select>
+    </div>
+    <div class="select-wrap">
+      <select id="filter-dev" onchange="renderActiveView();updateFilterBadges()">
+        <option value="">All Developers</option>
+      </select>
+    </div>
+    <div class="select-wrap">
+      <select id="filter-status" onchange="renderActiveView();updateFilterBadges()">
+        <option value="">All Statuses</option>
+        <option value="active">Active</option>
+        <option value="done">Done</option>
+        <option value="blocked">Blocked</option>
+        <option value="pending">Pending</option>
+        <option value="unscheduled">Backlog</option>
+      </select>
+    </div>
+    <button class="btn-clear-filters" id="btn-clear-filters" onclick="clearFilters()" style="display:none">
+      ✕ Clear
+    </button>
+  </div>
   <div class="toolbar-stats" id="toolbar-stats"></div>
   <div class="shortcuts-hint" id="shortcuts-hint">
     <span><kbd>N</kbd> New</span>
@@ -251,13 +256,34 @@
 
       <div class="form-section">
         <div class="form-section-title">Timeline Bar <span class="label-hint">(leave empty to add to Backlog)</span></div>
-        <div class="bar-picker-label">
-          <span class="bar-picker-hint">Drag to select weeks</span>
-          <span class="bar-picker-selection" id="bp-selection">No range selected — will go to Backlog</span>
+        <!-- Desktop: graphical week picker -->
+        <div id="bar-section-desktop">
+          <div class="bar-picker-label">
+            <span class="bar-picker-hint">Drag to select weeks</span>
+            <span class="bar-picker-selection" id="bp-selection">No range selected — will go to Backlog</span>
+          </div>
+          <div class="bar-month-labels" id="bar-month-labels"></div>
+          <div class="bar-picker" id="bar-picker"></div>
+          <div class="bar-week-labels" id="bar-labels"></div>
         </div>
-        <div class="bar-month-labels" id="bar-month-labels"></div>
-        <div class="bar-picker" id="bar-picker"></div>
-        <div class="bar-week-labels" id="bar-labels"></div>
+        <!-- Mobile: week select dropdowns -->
+        <div id="bar-section-mobile">
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Start Week</label>
+              <select id="bp-mobile-start" onchange="updateMobilePicker()">
+                <option value="-1">— No date (Backlog) —</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>End Week</label>
+              <select id="bp-mobile-end" onchange="updateMobilePicker()">
+                <option value="-1">— No date (Backlog) —</option>
+              </select>
+            </div>
+          </div>
+          <p class="mobile-bp-hint" id="mobile-bp-hint">No range selected — will go to Backlog</p>
+        </div>
         <div style="text-align:right;margin-top:6px">
           <button type="button" class="btn-clear-bar" onclick="clearTimeline()">Clear timeline</button>
         </div>
@@ -415,7 +441,7 @@
   <button class="toast-dismiss" onclick="hideToast()">✕</button>
 </div>
 
-<script src="app.js?v=20260704270005"></script>
+<script src="app.js?v=20260704270006"></script>
 
 <!-- ── Mobile Bottom Nav ── -->
 <nav class="mobile-bottom-nav" id="mobile-nav">
