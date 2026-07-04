@@ -1230,6 +1230,47 @@ header h1 { font-size: 15px; font-weight: 700; color: #fff; letter-spacing: -.2p
 .dp-active  { background: #EFF6FF; color: #1D4ED8; border-color: #BFDBFE; }
 .dp-blocked { background: #FFF1F2; color: #BE123C; border-color: #FECDD3; }
 .dp-total   { background: var(--bg); color: var(--text-3); border-color: var(--border); }
+.dp-done    { background: #F0FDF4; color: #15803D; border-color: #BBF7D0; }
+
+/* ── Dashboard Charts ── */
+.dash-charts-row {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 16px; margin-bottom: 16px;
+}
+.dash-chart-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 18px 20px;
+  box-shadow: var(--shadow-sm); min-width: 0;
+}
+.dash-chart-title { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 2px; }
+.dash-chart-sub   { font-size: 11px; color: var(--text-3); margin-bottom: 14px; }
+
+.dash-donut-wrap   { display: flex; align-items: center; gap: 20px; }
+.dash-donut-legend { display: flex; flex-direction: column; gap: 6px; flex: 1; }
+.dash-legend-item  { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--text-2); }
+.dash-legend-dot   { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+.dash-legend-count { margin-left: auto; font-weight: 700; color: var(--text); font-size: 12px; }
+
+.heatmap-rows { display: flex; flex-direction: column; gap: 12px; }
+.heatmap-row  {
+  display: grid;
+  grid-template-columns: minmax(90px, 1.2fr) 80px 100px 36px auto;
+  align-items: center; gap: 10px;
+}
+.heatmap-team      { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.heatmap-name      { font-size: 12px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.heatmap-rag-cell  { display: flex; align-items: center; gap: 5px; }
+.heatmap-rag-label { font-size: 10px; font-weight: 700; color: var(--text-2); }
+.heatmap-bar-wrap  { height: 6px; background: var(--border); border-radius: 99px; overflow: hidden; }
+.heatmap-bar-fill  { height: 100%; border-radius: 99px; transition: width .4s ease; }
+.heatmap-pct       { font-size: 11px; font-weight: 700; color: var(--text-2); text-align: right; }
+.heatmap-pills     { display: flex; gap: 4px; flex-wrap: wrap; }
+
+.scatter-legend {
+  display: flex; gap: 14px; margin-top: 8px;
+  font-size: 10px; color: var(--text-2);
+}
+.scatter-legend span { display: flex; align-items: center; gap: 4px; }
 
 .dash-list { display: flex; flex-direction: column; gap: 6px; }
 .dash-list-item {

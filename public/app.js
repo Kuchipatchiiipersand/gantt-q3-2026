@@ -528,92 +528,293 @@ function buildKanbanCard(task) {
   return card;
 }
 
-// ── Dashboard ─────────────────────────────────────────────────────────────
-function renderDashboard() {
-  const body = document.getElementById('dashboard-body');
+// ── Dashboard Chart Helpers ───────────────────────────────────────────────
 
-  const byStatus = s => allTasks.filter(t => t.status === s).length;
-  const todayWk   = currentWeekIndex();
-  const atRisk    = allTasks.filter(t => computeRAG(t) === 'at_risk');
-  const overdue   = allTasks.filter(t => {
-    const be = parseInt(t.bar_end);
-    return t.status !== 'done' && be >= 0 && be < todayWk;
+function buildDonutSVG(segments, total) {
+  const r = 52, cx = 70, cy = 70;
+  const C = 2 * Math.PI * r;
+  if (total === 0) {
+    return `<svg width="140" height="140" viewBox="0 0 140 140">
+      <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#F1F5F9" stroke-width="14"/>
+      <text x="${cx}" y="${cy + 5}" text-anchor="middle" font-size="11" fill="#94A3B8">No data</text>
+    </svg>`;
+  }
+  let cumLen = 0, arcs = '';
+  segments.filter(s => s.value > 0).forEach(s => {
+    const len = (s.value / total) * C;
+    arcs += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${s.color}" stroke-width="14"
+      stroke-dasharray="${len.toFixed(2)} ${(C - len).toFixed(2)}"
+      stroke-dashoffset="${(-cumLen).toFixed(2)}"
+      transform="rotate(-90 ${cx} ${cy})"><title>${s.label}: ${s.value}</title></circle>`;
+    cumLen += len;
+  });
+  return `<svg width="140" height="140" viewBox="0 0 140 140">
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#F1F5F9" stroke-width="14"/>
+    ${arcs}
+    <text x="${cx}" y="${cy - 6}" text-anchor="middle" font-size="26" font-weight="800" fill="#0F172A">${total}</text>
+    <text x="${cx}" y="${cy + 14}" text-anchor="middle" font-size="10" fill="#94A3B8">initiatives</text>
+  </svg>`;
+}
+
+function buildLoadSVG(tasks, todayWk) {
+  if (!NW) return '<div style="color:#94A3B8;font-size:12px;padding:20px;text-align:center">No weeks configured</div>';
+  const W = 520, H = 150, padL = 28, padR = 8, padT = 20, padB = 28;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+
+  const counts = Array.from({ length: NW }, (_, wi) =>
+    tasks.filter(t => {
+      const bs = parseInt(t.bar_start), be = parseInt(t.bar_end);
+      return bs >= 0 && be >= 0 && wi >= bs && wi <= be;
+    }).length
+  );
+  const maxCount = Math.max(...counts, 1);
+  const barW = plotW / NW;
+
+  // Y-axis grid
+  const step = Math.max(1, Math.ceil(maxCount / 4));
+  let grid = '';
+  for (let v = step; v <= maxCount + step - 1; v += step) {
+    if (v > maxCount) break;
+    const gy = (padT + plotH - (v / maxCount) * plotH).toFixed(1);
+    grid += `<line x1="${padL}" y1="${gy}" x2="${padL + plotW}" y2="${gy}" stroke="#E2E8F0" stroke-width="1"/>
+    <text x="${padL - 4}" y="${(+gy + 3).toFixed(1)}" text-anchor="end" font-size="9" fill="#94A3B8">${v}</text>`;
+  }
+
+  // Bars
+  let bars = '';
+  counts.forEach((count, wi) => {
+    const x = padL + wi * barW, isToday = wi === todayWk;
+    const bh = count > 0 ? Math.max(3, (count / maxCount) * plotH) : 0;
+    const y  = padT + plotH - bh;
+    const color = isToday ? '#4F46E5' : count > 7 ? '#F43F5E' : count > 4 ? '#F59E0B' : '#3B82F6';
+    if (bh > 0) {
+      bars += `<rect x="${(x + 1.5).toFixed(1)}" y="${y.toFixed(1)}" width="${(barW - 3).toFixed(1)}" height="${bh.toFixed(1)}" rx="3"
+        fill="${color}" opacity="${isToday ? 1 : 0.75}"><title>${WEEKS[wi]}: ${count} task${count !== 1 ? 's' : ''}</title></rect>`;
+    } else {
+      bars += `<rect x="${(x + 1.5).toFixed(1)}" y="${(padT + plotH - 2).toFixed(1)}" width="${(barW - 3).toFixed(1)}" height="2" rx="1" fill="#E2E8F0"/>`;
+    }
   });
 
-  const stats = [
-    { label: 'In Progress', value: byStatus('active'),  color: '#3B82F6' },
-    { label: 'Blocked',     value: byStatus('blocked'), color: '#F43F5E' },
-    { label: 'At Risk',     value: atRisk.length,       color: '#F59E0B' },
-    { label: 'Done',        value: byStatus('done'),    color: '#22C55E' },
-    { label: 'Overdue',     value: overdue.length,      color: '#EF4444' },
-  ];
+  // Month separators + labels
+  let months = '';
+  MONTHS.forEach((m, i) => {
+    if (i > 0) {
+      const mx = (padL + m.from * barW).toFixed(1);
+      months += `<line x1="${mx}" y1="${padT}" x2="${mx}" y2="${padT + plotH}" stroke="#CBD5E1" stroke-width="1" stroke-dasharray="2,2"/>`;
+    }
+    const lx = (padL + (m.from + m.to + 1) / 2 * barW).toFixed(1);
+    months += `<text x="${lx}" y="${H - 4}" text-anchor="middle" font-size="10" font-weight="600" fill="#64748B">${m.short}</text>`;
+  });
 
-  let html = `<div class="dash-stats">${stats.map(s => `
-    <div class="dash-stat-card" style="border-top:3px solid ${s.color}">
-      <div class="dash-stat-value" style="color:${s.color}">${s.value}</div>
-      <div class="dash-stat-label">${s.label}</div>
-    </div>`).join('')}</div>`;
+  // Today marker
+  let todayEl = '';
+  if (todayWk >= 0 && todayWk < NW) {
+    const tx = (padL + todayWk * barW + barW / 2).toFixed(1);
+    todayEl = `<line x1="${tx}" y1="${padT - 6}" x2="${tx}" y2="${padT + plotH}" stroke="#4F46E5" stroke-width="1.5" stroke-dasharray="3,2"/>
+    <text x="${tx}" y="${padT - 9}" text-anchor="middle" font-size="8" fill="#4F46E5" font-weight="600">Today</text>`;
+  }
 
-  // Per-project progress (using average task progress)
-  html += `<div class="dash-section"><div class="dash-section-title">Projects Overview</div><div class="dash-projects">`;
-  allTeams.forEach(team => {
-    const tasks       = allTasks.filter(t => t.team === team.name);
-    if (!tasks.length) return;
-    const doneCount   = tasks.filter(t => t.status === 'done').length;
-    const activeCount = tasks.filter(t => t.status === 'active').length;
-    const blkCount    = tasks.filter(t => t.status === 'blocked').length;
-    const atRiskCount = tasks.filter(t => computeRAG(t) === 'at_risk').length;
-    // avg progress: done tasks = 100%, others use their progress field
-    const avgPct = Math.round(tasks.reduce((sum, t) => sum + (t.status === 'done' ? 100 : (parseInt(t.progress) || 0)), 0) / tasks.length);
-    html += `<div class="dash-project-row">
-      <div class="dash-proj-name"><span class="tgh-dot" style="background:${team.color}"></span>${team.name}</div>
-      <div class="dash-proj-bar"><div class="dash-proj-fill" style="width:${avgPct}%;background:${team.color}"></div></div>
-      <div class="dash-proj-pct">${avgPct}%</div>
-      <div class="dash-proj-pills">
-        ${activeCount  ? `<span class="dash-pill dp-active">${activeCount} active</span>` : ''}
-        ${blkCount     ? `<span class="dash-pill dp-blocked">${blkCount} blocked</span>` : ''}
-        ${atRiskCount  ? `<span class="dash-pill" style="background:#FFFBEB;color:#B45309;border:1px solid #FDE68A">${atRiskCount} at risk</span>` : ''}
-        <span class="dash-pill dp-total">${tasks.length} total</span>
+  return `<svg width="100%" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">
+    <rect x="${padL}" y="${padT}" width="${plotW}" height="${plotH}" fill="#F8FAFC" rx="4"/>
+    ${grid}${months}${bars}${todayEl}
+  </svg>`;
+}
+
+function buildHeatmapHTML(teams, tasks) {
+  const rows = teams.map(team => {
+    const tt = tasks.filter(t => t.team === team.name);
+    if (!tt.length) return null;
+    const rags    = tt.map(t => computeRAG(t)).filter(Boolean);
+    const worst   = rags.includes('critical') ? 'critical' : rags.includes('at_risk') ? 'at_risk' : rags.length ? 'on_track' : null;
+    const done    = tt.filter(t => t.status === 'done').length;
+    const active  = tt.filter(t => t.status === 'active').length;
+    const blocked = tt.filter(t => t.status === 'blocked').length;
+    const avgPct  = Math.round(tt.reduce((s, t) => s + (t.status === 'done' ? 100 : (parseInt(t.progress) || 0)), 0) / tt.length);
+    return { name: team.name, color: team.color, worst, avgPct, done, active, blocked };
+  }).filter(Boolean);
+
+  const order = { critical: 0, at_risk: 1, on_track: 2 };
+  rows.sort((a, b) => (order[a.worst] ?? 3) - (order[b.worst] ?? 3));
+  if (!rows.length) return '<div style="color:#94A3B8;font-size:12px;padding:20px">No projects yet</div>';
+
+  return rows.map(r => {
+    const ragLabel = r.worst ? RAG_META[r.worst]?.label : '—';
+    const ragDot   = r.worst ? `<span class="rag-dot rag-${r.worst}"></span>` : '';
+    return `<div class="heatmap-row">
+      <div class="heatmap-team"><span class="tgh-dot" style="background:${r.color}"></span><span class="heatmap-name">${r.name}</span></div>
+      <div class="heatmap-rag-cell">${ragDot}<span class="heatmap-rag-label">${ragLabel}</span></div>
+      <div class="heatmap-bar-wrap"><div class="heatmap-bar-fill" style="width:${r.avgPct}%;background:${r.color}"></div></div>
+      <div class="heatmap-pct">${r.avgPct}%</div>
+      <div class="heatmap-pills">
+        ${r.active  ? `<span class="dash-pill dp-active">${r.active} active</span>` : ''}
+        ${r.blocked ? `<span class="dash-pill dp-blocked">${r.blocked} blocked</span>` : ''}
+        ${r.done    ? `<span class="dash-pill dp-done">${r.done} done</span>` : ''}
       </div>
     </div>`;
-  });
-  html += `</div></div>`;
+  }).join('');
+}
 
-  // At Risk items
+function buildScatterSVG(tasks, todayWk) {
+  const W = 380, H = 220, padL = 36, padR = 12, padT = 16, padB = 30;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+
+  const points = todayWk < 0 ? [] : tasks
+    .filter(t => ['active', 'blocked'].includes(t.status))
+    .map(t => {
+      const bs = parseInt(t.bar_start), be = parseInt(t.bar_end);
+      if (bs < 0 || be < 0 || be < bs) return null;
+      const elapsed  = Math.max(0, todayWk - bs);
+      const expected = Math.min(100, Math.round((elapsed / (be - bs + 1)) * 100));
+      const actual   = parseInt(t.progress) || 0;
+      return { task: t, expected, actual, rag: computeRAG(t) };
+    }).filter(Boolean);
+
+  // Grid lines
+  let grid = '';
+  [25, 50, 75].forEach(p => {
+    const gx = (padL + (p / 100) * plotW).toFixed(1);
+    const gy = (padT + plotH - (p / 100) * plotH).toFixed(1);
+    grid += `<line x1="${gx}" y1="${padT}" x2="${gx}" y2="${padT + plotH}" stroke="#E2E8F0" stroke-width="1"/>
+    <line x1="${padL}" y1="${gy}" x2="${padL + plotW}" y2="${gy}" stroke="#E2E8F0" stroke-width="1"/>
+    <text x="${gx}" y="${padT + plotH + 11}" text-anchor="middle" font-size="8" fill="#CBD5E1">${p}%</text>
+    <text x="${padL - 4}" y="${(+gy + 3).toFixed(1)}" text-anchor="end" font-size="8" fill="#CBD5E1">${p}%</text>`;
+  });
+
+  // Shading + diagonal
+  const ahead  = `<polygon points="${padL},${padT + plotH} ${padL + plotW},${padT} ${padL},${padT}" fill="#F0FDF4" opacity="0.5"/>`;
+  const behind = `<polygon points="${padL},${padT + plotH} ${padL + plotW},${padT + plotH} ${padL + plotW},${padT}" fill="#FEF2F2" opacity="0.4"/>`;
+  const diag   = `<line x1="${padL}" y1="${padT + plotH}" x2="${padL + plotW}" y2="${padT}" stroke="#CBD5E1" stroke-width="1.5" stroke-dasharray="5,3"/>`;
+
+  // Dots
+  const dots = points.map(p => {
+    const cx = (padL + (p.expected / 100) * plotW).toFixed(1);
+    const cy = (padT + plotH - (p.actual / 100) * plotH).toFixed(1);
+    const color = p.rag === 'critical' ? '#F43F5E' : p.rag === 'at_risk' ? '#F59E0B' : '#22C55E';
+    const tip   = `${p.task.initiative.replace(/</g, '&lt;')}\nExpected: ${p.expected}% · Actual: ${p.actual}%`;
+    return `<circle cx="${cx}" cy="${cy}" r="5.5" fill="${color}" stroke="white" stroke-width="1.5"
+      opacity="0.88" style="cursor:pointer" onclick="openModal(${p.task.id})"><title>${tip}</title></circle>`;
+  });
+
+  const axes = `
+    <text x="${padL - 4}" y="${padT + plotH + 4}" text-anchor="end" font-size="9" fill="#94A3B8">0%</text>
+    <text x="${padL + plotW / 2}" y="${H - 1}" text-anchor="middle" font-size="9" fill="#94A3B8" font-weight="600">Expected %</text>
+    <text x="${padL - 4}" y="${padT + 4}" text-anchor="end" font-size="9" fill="#94A3B8">100%</text>
+    <text font-size="9" fill="#94A3B8" font-weight="600" text-anchor="middle"
+      transform="rotate(-90) translate(${-(padT + plotH / 2)} ${padL - 26})">Actual %</text>
+    <text x="${padL + plotW - 2}" y="${padT + 10}" text-anchor="end" font-size="8" fill="#94A3B8" font-style="italic">on track ↗</text>`;
+
+  const empty = points.length === 0
+    ? `<text x="${padL + plotW / 2}" y="${padT + plotH / 2 + 4}" text-anchor="middle" font-size="11" fill="#94A3B8">${
+        todayWk < 0 ? 'Outside roadmap period' : 'No active tasks with timeline'
+      }</text>`
+    : '';
+
+  return `<svg width="100%" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">
+    <rect x="${padL}" y="${padT}" width="${plotW}" height="${plotH}" fill="#F8FAFC" rx="4"/>
+    ${ahead}${behind}${grid}${diag}${dots.join('')}${empty}${axes}
+  </svg>`;
+}
+
+// ── Dashboard ─────────────────────────────────────────────────────────────
+function renderDashboard() {
+  const body    = document.getElementById('dashboard-body');
+  const todayWk = currentWeekIndex();
+
+  const atRisk  = allTasks.filter(t => computeRAG(t) === 'at_risk');
+  const critical = allTasks.filter(t => computeRAG(t) === 'critical');
+  const overdue  = allTasks.filter(t => {
+    const be = parseInt(t.bar_end);
+    return t.status !== 'done' && be >= 0 && todayWk >= 0 && be < todayWk;
+  });
+  const blocked  = allTasks.filter(t => t.status === 'blocked');
+
+  // Donut: health-based segments
+  const onTrack = allTasks.filter(t => computeRAG(t) === 'on_track');
+  const doneAll = allTasks.filter(t => t.status === 'done');
+  const pending = allTasks.filter(t => t.status === 'pending');
+  const backlog = allTasks.filter(t => t.status === 'unscheduled');
+  const total   = allTasks.length;
+
+  const donutSegs = [
+    { label: 'Done',     value: doneAll.length,  color: '#22C55E' },
+    { label: 'On Track', value: onTrack.length,  color: '#3B82F6' },
+    { label: 'At Risk',  value: atRisk.length,   color: '#F59E0B' },
+    { label: 'Critical', value: critical.length, color: '#F43F5E' },
+    { label: 'Pending',  value: pending.length,  color: '#94A3B8' },
+    { label: 'Backlog',  value: backlog.length,  color: '#CBD5E1' },
+  ];
+
+  const legend = donutSegs.map(s => s.value > 0 ? `
+    <div class="dash-legend-item">
+      <span class="dash-legend-dot" style="background:${s.color}"></span>
+      <span>${s.label}</span>
+      <span class="dash-legend-count">${s.value}</span>
+    </div>` : '').join('');
+
+  let html = `
+  <div class="dash-charts-row" style="grid-template-columns:minmax(220px,1fr) 2fr">
+    <div class="dash-chart-card">
+      <div class="dash-chart-title">Status Overview</div>
+      <div class="dash-chart-sub">Health breakdown across all initiatives</div>
+      <div class="dash-donut-wrap">
+        ${buildDonutSVG(donutSegs, total)}
+        <div class="dash-donut-legend">${legend}</div>
+      </div>
+    </div>
+    <div class="dash-chart-card">
+      <div class="dash-chart-title">Weekly Load</div>
+      <div class="dash-chart-sub">Initiatives active per week — blue moderate · amber heavy · red overloaded</div>
+      ${buildLoadSVG(allTasks, todayWk)}
+    </div>
+  </div>
+
+  <div class="dash-charts-row">
+    <div class="dash-chart-card">
+      <div class="dash-chart-title">Team Health</div>
+      <div class="dash-chart-sub">Sorted by highest risk first</div>
+      <div class="heatmap-rows">${buildHeatmapHTML(allTeams, allTasks)}</div>
+    </div>
+    <div class="dash-chart-card">
+      <div class="dash-chart-title">Progress vs Expected</div>
+      <div class="dash-chart-sub">Green zone = ahead · red zone = behind · click any dot to edit</div>
+      ${buildScatterSVG(allTasks, todayWk)}
+      <div class="scatter-legend">
+        <span><span class="rag-dot rag-on_track"></span>On Track</span>
+        <span><span class="rag-dot rag-at_risk"></span>At Risk</span>
+        <span><span class="rag-dot rag-critical"></span>Critical</span>
+      </div>
+    </div>
+  </div>`;
+
   if (atRisk.length) {
     html += `<div class="dash-section"><div class="dash-section-title" style="color:#B45309">🟡 At Risk (${atRisk.length})</div><div class="dash-list">`;
     atRisk.forEach(t => {
-      const c  = allTeams.find(x => x.name === t.team)?.color || '#64748B';
       const be = parseInt(t.bar_end);
-      const weeksLeft = be >= 0 ? be - todayWk : null;
+      const wl = (be >= 0 && todayWk >= 0) ? be - todayWk : null;
       html += `<div class="dash-list-item">
         <span class="rag-dot rag-at_risk"></span>
         <span class="dash-item-name">${t.initiative}</span>
-        <span class="dash-item-meta">${t.team}${weeksLeft !== null ? ` · ${weeksLeft} wks left` : ''}</span>
+        <span class="dash-item-meta">${t.team}${wl !== null ? ` · ${wl} wks left` : ''}</span>
         <button class="btn-edit" onclick="openModal(${t.id})" title="Edit">✎</button>
       </div>`;
     });
     html += `</div></div>`;
   }
 
-  // Overdue items
   if (overdue.length) {
     html += `<div class="dash-section"><div class="dash-section-title dash-title-blocked">⚠ Overdue (${overdue.length})</div><div class="dash-list">`;
     overdue.forEach(t => {
-      const c = allTeams.find(x => x.name === t.team)?.color || '#64748B';
-      const weeksLate = todayWk - parseInt(t.bar_end);
+      const wl = todayWk >= 0 ? todayWk - parseInt(t.bar_end) : 0;
       html += `<div class="dash-list-item">
         <span class="rag-dot rag-critical"></span>
         <span class="dash-item-name">${t.initiative}</span>
-        <span class="dash-item-meta" style="color:#BE123C">${t.team} · ${weeksLate} wks late</span>
+        <span class="dash-item-meta" style="color:#BE123C">${t.team} · ${wl} wks late</span>
         <button class="btn-edit" onclick="openModal(${t.id})" title="Edit">✎</button>
       </div>`;
     });
     html += `</div></div>`;
   }
 
-  // Blocked items
-  const blocked = allTasks.filter(t => t.status === 'blocked');
   if (blocked.length) {
     html += `<div class="dash-section"><div class="dash-section-title dash-title-blocked">🔴 Blocked (${blocked.length})</div><div class="dash-list">`;
     blocked.forEach(t => {
