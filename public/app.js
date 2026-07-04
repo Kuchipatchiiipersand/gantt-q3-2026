@@ -82,6 +82,22 @@ const STATUS_META = {
   unscheduled: { label: 'Backlog',     cls: 's-unscheduled' },
 };
 
+const PRIORITY_META = {
+  high:   { label: 'High',   cls: 'p-high'   },
+  medium: { label: 'Medium', cls: 'p-medium' },
+  low:    { label: 'Low',    cls: 'p-low'    },
+};
+
+const KANBAN_COLS = [
+  { status: 'unscheduled', label: 'Backlog',      color: '#94A3B8' },
+  { status: 'pending',     label: 'Pending',       color: '#F59E0B' },
+  { status: 'active',      label: 'In Progress',   color: '#3B82F6' },
+  { status: 'blocked',     label: 'Blocked',       color: '#F43F5E' },
+  { status: 'done',        label: 'Done',          color: '#22C55E' },
+];
+
+let currentView = 'gantt';
+
 let allTasks      = [];
 let allTeams      = [];
 let allDevelopers = [];
@@ -228,6 +244,186 @@ function rebuildOwnerDropdown(selectedProject, currentOwner) {
 
   sel.innerHTML = html;
   sel.value = currentOwner || '';
+}
+
+// ── View Switching ────────────────────────────────────────────────────────
+function renderActiveView() {
+  if (currentView === 'gantt')     renderGantt();
+  else if (currentView === 'kanban')    renderKanban();
+  else if (currentView === 'dashboard') renderDashboard();
+}
+
+function switchView(view) {
+  currentView = view;
+  ['gantt','kanban','dashboard'].forEach(v => {
+    document.getElementById(`view-${v}`).style.display   = v === view ? (v === 'gantt' ? 'block' : 'flex') : 'none';
+    document.getElementById(`vbtn-${v}`).classList.toggle('active', v === view);
+  });
+  renderActiveView();
+}
+
+// ── Kanban ────────────────────────────────────────────────────────────────
+function renderKanban() {
+  const board    = document.getElementById('kanban-board');
+  const search   = document.getElementById('search').value.toLowerCase();
+  const projFilt = document.getElementById('filter-project').value;
+  const devFilt  = document.getElementById('filter-dev').value;
+  const statFilt = document.getElementById('filter-status').value;
+
+  const tasks = allTasks.filter(t => {
+    if (search && !t.initiative.toLowerCase().includes(search) && !(t.owner||'').toLowerCase().includes(search)) return false;
+    if (projFilt && t.team !== projFilt) return false;
+    if (devFilt  && t.owner !== devFilt) return false;
+    if (statFilt && t.status !== statFilt) return false;
+    return true;
+  });
+
+  board.innerHTML = '';
+  KANBAN_COLS.forEach(col => {
+    const colTasks = tasks.filter(t => t.status === col.status);
+    const colEl = document.createElement('div');
+    colEl.className = 'kanban-col';
+    colEl.dataset.status = col.status;
+
+    colEl.addEventListener('dragover',  e => { e.preventDefault(); colEl.classList.add('drag-over'); });
+    colEl.addEventListener('dragleave', ()  => colEl.classList.remove('drag-over'));
+    colEl.addEventListener('drop', async e => {
+      e.preventDefault();
+      colEl.classList.remove('drag-over');
+      const taskId = parseInt(e.dataTransfer.getData('taskId'));
+      const task   = allTasks.find(t => t.id === taskId);
+      if (!task || task.status === col.status) return;
+      const payload = { ...task, status: col.status, is_blocked: col.status === 'blocked' ? 1 : 0 };
+      await fetch(`${API}/api/tasks/${taskId}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+      await loadTasks();
+      renderKanban();
+    });
+
+    const header = document.createElement('div');
+    header.className = 'kanban-col-header';
+    header.innerHTML = `
+      <span class="kanban-col-dot" style="background:${col.color}"></span>
+      <span class="kanban-col-label">${col.label}</span>
+      <span class="tgh-count">${colTasks.length}</span>
+      <button class="kanban-add-btn" title="Add to ${col.label}" onclick="openModal();document.getElementById('f-status').value='${col.status}'">+</button>`;
+    colEl.appendChild(header);
+
+    const cards = document.createElement('div');
+    cards.className = 'kanban-cards';
+    colTasks.forEach(t => cards.appendChild(buildKanbanCard(t)));
+    colEl.appendChild(cards);
+    board.appendChild(colEl);
+  });
+}
+
+function buildKanbanCard(task) {
+  const card  = document.createElement('div');
+  card.className  = 'kanban-card';
+  card.draggable  = true;
+  card.dataset.id = task.id;
+
+  card.addEventListener('dragstart', e => { e.dataTransfer.setData('taskId', task.id); card.classList.add('dragging'); });
+  card.addEventListener('dragend',   () => card.classList.remove('dragging'));
+
+  const team    = allTeams.find(t => t.name === task.team);
+  const color   = team?.color || '#64748B';
+  const pm      = PRIORITY_META[task.priority || 'medium'];
+  const sm      = STATUS_META[task.status]   || STATUS_META.active;
+  const safeName = task.initiative.replace(/'/g, "\\'");
+
+  card.innerHTML = `
+    <div class="kcard-top">
+      <span class="priority-badge ${pm.cls}">${pm.label}</span>
+      <div class="kcard-actions">
+        <button class="btn-edit" onclick="openModal(${task.id})" title="Edit">✎</button>
+        <button class="btn-del"  onclick="openDelete(${task.id},'${safeName}')" title="Delete">✕</button>
+      </div>
+    </div>
+    <div class="kcard-title">${task.initiative}</div>
+    <div class="kcard-footer">
+      <span class="kcard-project" style="border-left:3px solid ${color};padding-left:6px">${task.team}</span>
+      ${task.owner ? `<span class="kcard-owner"><span class="cell-assignee-avatar" style="background:${color};width:18px;height:18px;font-size:9px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;color:#fff;font-weight:700">${task.owner[0].toUpperCase()}</span> ${task.owner}</span>` : ''}
+    </div>`;
+
+  return card;
+}
+
+// ── Dashboard ─────────────────────────────────────────────────────────────
+function renderDashboard() {
+  const body = document.getElementById('dashboard-body');
+
+  const byStatus = s => allTasks.filter(t => t.status === s).length;
+  const stats = [
+    { label: 'In Progress', value: byStatus('active'),      color: '#3B82F6' },
+    { label: 'Blocked',     value: byStatus('blocked'),     color: '#F43F5E' },
+    { label: 'Pending',     value: byStatus('pending'),     color: '#F59E0B' },
+    { label: 'Done',        value: byStatus('done'),        color: '#22C55E' },
+    { label: 'Backlog',     value: byStatus('unscheduled'), color: '#94A3B8' },
+  ];
+
+  let html = `<div class="dash-stats">${stats.map(s => `
+    <div class="dash-stat-card" style="border-top:3px solid ${s.color}">
+      <div class="dash-stat-value" style="color:${s.color}">${s.value}</div>
+      <div class="dash-stat-label">${s.label}</div>
+    </div>`).join('')}</div>`;
+
+  // Per-project progress
+  html += `<div class="dash-section"><div class="dash-section-title">Projects Overview</div><div class="dash-projects">`;
+  allTeams.forEach(team => {
+    const tasks       = allTasks.filter(t => t.team === team.name);
+    if (!tasks.length) return;
+    const doneCount   = tasks.filter(t => t.status === 'done').length;
+    const activeCount = tasks.filter(t => t.status === 'active').length;
+    const blkCount    = tasks.filter(t => t.status === 'blocked').length;
+    const pct         = Math.round(doneCount / tasks.length * 100);
+    html += `<div class="dash-project-row">
+      <div class="dash-proj-name"><span class="tgh-dot" style="background:${team.color}"></span>${team.name}</div>
+      <div class="dash-proj-bar"><div class="dash-proj-fill" style="width:${pct}%;background:${team.color}"></div></div>
+      <div class="dash-proj-pct">${pct}%</div>
+      <div class="dash-proj-pills">
+        ${activeCount ? `<span class="dash-pill dp-active">${activeCount} active</span>` : ''}
+        ${blkCount   ? `<span class="dash-pill dp-blocked">${blkCount} blocked</span>` : ''}
+        <span class="dash-pill dp-total">${tasks.length} total</span>
+      </div>
+    </div>`;
+  });
+  html += `</div></div>`;
+
+  // Blocked items
+  const blocked = allTasks.filter(t => t.status === 'blocked');
+  if (blocked.length) {
+    html += `<div class="dash-section"><div class="dash-section-title dash-title-blocked">⚠ Blocked (${blocked.length})</div><div class="dash-list">`;
+    blocked.forEach(t => {
+      const c = allTeams.find(x => x.name === t.team)?.color || '#64748B';
+      html += `<div class="dash-list-item">
+        <span class="tgh-dot" style="background:${c}"></span>
+        <span class="dash-item-name">${t.initiative}</span>
+        <span class="dash-item-meta">${t.team}${t.owner ? ' · ' + t.owner : ''}</span>
+        <button class="btn-edit" onclick="openModal(${t.id})" title="Edit">✎</button>
+      </div>`;
+    });
+    html += `</div></div>`;
+  }
+
+  // High priority open items
+  const high = allTasks.filter(t => t.priority === 'high' && t.status !== 'done');
+  if (high.length) {
+    html += `<div class="dash-section"><div class="dash-section-title dash-title-high">🔴 High Priority Open (${high.length})</div><div class="dash-list">`;
+    high.forEach(t => {
+      const c  = allTeams.find(x => x.name === t.team)?.color || '#64748B';
+      const sm = STATUS_META[t.status] || STATUS_META.active;
+      html += `<div class="dash-list-item">
+        <span class="tgh-dot" style="background:${c}"></span>
+        <span class="dash-item-name">${t.initiative}</span>
+        <span class="status-chip ${sm.cls}" style="padding:2px 8px;font-size:9px"><span class="chip-dot"></span>${sm.label}</span>
+        <span class="dash-item-meta">${t.team}${t.owner ? ' · ' + t.owner : ''}</span>
+        <button class="btn-edit" onclick="openModal(${t.id})" title="Edit">✎</button>
+      </div>`;
+    });
+    html += `</div></div>`;
+  }
+
+  body.innerHTML = html;
 }
 
 // ── Render Gantt ──────────────────────────────────────────────────────────
@@ -458,6 +654,7 @@ function openModal(id = null) {
     document.getElementById('f-bar-start').value    = t.bar_start;
     document.getElementById('f-bar-end').value      = t.bar_end;
     document.getElementById('f-bar-color').value    = t.bar_color || '#4F46E5';
+    document.getElementById('f-priority').value     = t.priority  || 'medium';
     rebuildOwnerDropdown(t.team, t.owner);
     setBarPickerRange(parseInt(t.bar_start), parseInt(t.bar_end));
   } else {
@@ -482,6 +679,7 @@ async function saveTask(e) {
     outcome:      document.getElementById('f-outcome').value,
     target:       document.getElementById('f-target').value,
     status:       document.getElementById('f-status').value,
+    priority:     document.getElementById('f-priority').value,
     metric:       document.getElementById('f-metric').value,
     dependencies: document.getElementById('f-dependencies').value,
     bar_start:    parseInt(document.getElementById('f-bar-start').value),
@@ -497,6 +695,8 @@ async function saveTask(e) {
   closeModal();
   await loadTasks();
   renderGantt();
+  if (currentView === 'kanban')    renderKanban();
+  if (currentView === 'dashboard') renderDashboard();
 }
 
 // ── Delete ─────────────────────────────────────────────────────────────────
@@ -513,6 +713,8 @@ async function confirmDelete() {
   closeDelete();
   await loadTasks();
   renderGantt();
+  if (currentView === 'kanban')    renderKanban();
+  if (currentView === 'dashboard') renderDashboard();
 }
 
 // ── Manage Modal ───────────────────────────────────────────────────────────

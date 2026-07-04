@@ -6,7 +6,7 @@
 <title>Q3 2026 Roadmap</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=20260703270004">
+<link rel="stylesheet" href="style.css?v=20260703270005">
 </head>
 <body>
 
@@ -36,23 +36,29 @@
 
 <!-- ── Toolbar ── -->
 <div class="toolbar">
+  <div class="view-switcher">
+    <button class="view-btn active" id="vbtn-gantt"      onclick="switchView('gantt')">📅 Gantt</button>
+    <button class="view-btn"        id="vbtn-kanban"     onclick="switchView('kanban')">📋 Kanban</button>
+    <button class="view-btn"        id="vbtn-dashboard"  onclick="switchView('dashboard')">📊 Dashboard</button>
+  </div>
+  <div class="toolbar-sep"></div>
   <div class="search-wrap">
     <span class="search-icon">⌕</span>
-    <input id="search" type="text" placeholder="Search..." oninput="renderGantt()">
+    <input id="search" type="text" placeholder="Search..." oninput="renderActiveView()">
   </div>
   <div class="toolbar-sep"></div>
   <div class="select-wrap">
-    <select id="filter-project" onchange="renderGantt()">
+    <select id="filter-project" onchange="renderActiveView()">
       <option value="">All Projects</option>
     </select>
   </div>
   <div class="select-wrap">
-    <select id="filter-dev" onchange="renderGantt()">
+    <select id="filter-dev" onchange="renderActiveView()">
       <option value="">All Developers</option>
     </select>
   </div>
   <div class="select-wrap">
-    <select id="filter-status" onchange="renderGantt()">
+    <select id="filter-status" onchange="renderActiveView()">
       <option value="">All Statuses</option>
       <option value="active">Active</option>
       <option value="done">Done</option>
@@ -68,8 +74,8 @@
   <div class="toolbar-stats" id="toolbar-stats"></div>
 </div>
 
-<!-- ── Gantt ── -->
-<div class="gantt-outer">
+<!-- ── Gantt View ── -->
+<div class="gantt-outer" id="view-gantt">
 <div class="gantt-wrap" id="gantt-wrap">
 
   <div class="gantt-header" id="gantt-header">
@@ -89,6 +95,16 @@
   <div id="gantt-body"></div>
 
 </div>
+</div>
+
+<!-- ── Kanban View ── -->
+<div class="view-pane" id="view-kanban" style="display:none">
+  <div class="kanban-board" id="kanban-board"></div>
+</div>
+
+<!-- ── Dashboard View ── -->
+<div class="view-pane" id="view-dashboard" style="display:none">
+  <div class="dashboard-body" id="dashboard-body"></div>
 </div>
 
 <!-- ── Add/Edit Initiative Modal ── -->
@@ -132,7 +148,7 @@
           <label>Outcome <span class="label-hint">— what will this enable?</span></label>
           <textarea id="f-outcome" rows="2" placeholder="Enable... so that..."></textarea>
         </div>
-        <div class="form-grid">
+        <div class="form-grid" style="grid-template-columns:1fr 1fr 1fr">
           <div class="form-group">
             <label>Target Timeline</label>
             <input type="text" id="f-target" placeholder="e.g. Jul 2026">
@@ -145,6 +161,14 @@
               <option value="blocked">Blocked</option>
               <option value="pending">Pending</option>
               <option value="unscheduled">Backlog</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Priority</label>
+            <select id="f-priority">
+              <option value="high">🔴 High</option>
+              <option value="medium" selected>🟡 Medium</option>
+              <option value="low">🟢 Low</option>
             </select>
           </div>
         </div>
@@ -317,6 +341,6 @@
   </div>
 </div>
 
-<script src="app.js?v=20260703270004"></script>
+<script src="app.js?v=20260703270005"></script>
 </body>
 </html>

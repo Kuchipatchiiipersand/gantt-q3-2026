@@ -78,6 +78,7 @@ async function initSchema() {
         metric        TEXT DEFAULT '',
         dependencies  TEXT DEFAULT '',
         status        TEXT DEFAULT 'active',
+        priority      TEXT DEFAULT 'medium',
         bar_start     INTEGER DEFAULT -1,
         bar_end       INTEGER DEFAULT -1,
         bar_color     TEXT DEFAULT '#4F46E5',
@@ -87,6 +88,7 @@ async function initSchema() {
         updated_at    TIMESTAMPTZ DEFAULT NOW()
       );
     `);
+    await db.run("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS priority TEXT DEFAULT 'medium'").catch(() => {});
   } else {
     db.exec(`
       CREATE TABLE IF NOT EXISTS teams (
@@ -111,6 +113,7 @@ async function initSchema() {
         metric        TEXT DEFAULT '',
         dependencies  TEXT DEFAULT '',
         status        TEXT DEFAULT 'active',
+        priority      TEXT DEFAULT 'medium',
         bar_start     INTEGER DEFAULT -1,
         bar_end       INTEGER DEFAULT -1,
         bar_color     TEXT DEFAULT '#4F46E5',
@@ -120,6 +123,7 @@ async function initSchema() {
         updated_at    TEXT DEFAULT (datetime('now'))
       );
     `);
+    try { db.exec("ALTER TABLE tasks ADD COLUMN priority TEXT DEFAULT 'medium'"); } catch(_) {}
   }
 }
 
@@ -318,15 +322,15 @@ app.get('/api/tasks', async (req, res) => {
 app.post('/api/tasks', async (req, res) => {
   try {
     const { team, owner='', initiative, outcome='', target='', metric='',
-            dependencies='', status='active', bar_start=-1, bar_end=-1,
+            dependencies='', status='active', priority='medium', bar_start=-1, bar_end=-1,
             bar_color='#4F46E5', is_blocked=0 } = req.body;
     if (!team || !initiative) return res.status(400).json({ error: 'team and initiative required' });
     const max = await db.get('SELECT MAX(sort_order) AS m FROM tasks WHERE team=$1', [team]);
     const sort_order = (parseInt(max?.m) || 0) + 1;
     const row = await db.get(
-      `INSERT INTO tasks (team,owner,initiative,outcome,target,metric,dependencies,status,bar_start,bar_end,bar_color,is_blocked,sort_order)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
-      [team,owner,initiative,outcome,target,metric,dependencies,status,bar_start,bar_end,bar_color,is_blocked?1:0,sort_order]
+      `INSERT INTO tasks (team,owner,initiative,outcome,target,metric,dependencies,status,priority,bar_start,bar_end,bar_color,is_blocked,sort_order)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
+      [team,owner,initiative,outcome,target,metric,dependencies,status,priority,bar_start,bar_end,bar_color,is_blocked?1:0,sort_order]
     );
     res.json(row);
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -335,13 +339,13 @@ app.post('/api/tasks', async (req, res) => {
 app.put('/api/tasks/:id', async (req, res) => {
   try {
     const { team, initiative, owner='', outcome='', target='', metric='', dependencies='',
-            status='active', bar_start=-1, bar_end=-1, bar_color='#4F46E5', is_blocked=0 } = req.body;
+            status='active', priority='medium', bar_start=-1, bar_end=-1, bar_color='#4F46E5', is_blocked=0 } = req.body;
     const now = process.env.DATABASE_URL ? 'NOW()' : "datetime('now')";
     const row = await db.get(
       `UPDATE tasks SET team=$1,initiative=$2,owner=$3,outcome=$4,target=$5,metric=$6,dependencies=$7,
-       status=$8,bar_start=$9,bar_end=$10,bar_color=$11,is_blocked=$12,updated_at=${now}
-       WHERE id=$13 RETURNING *`,
-      [team,initiative,owner,outcome,target,metric,dependencies,status,bar_start,bar_end,bar_color,is_blocked?1:0,req.params.id]
+       status=$8,priority=$9,bar_start=$10,bar_end=$11,bar_color=$12,is_blocked=$13,updated_at=${now}
+       WHERE id=$14 RETURNING *`,
+      [team,initiative,owner,outcome,target,metric,dependencies,status,priority,bar_start,bar_end,bar_color,is_blocked?1:0,req.params.id]
     );
     res.json(row);
   } catch(e) { res.status(500).json({ error: e.message }); }
