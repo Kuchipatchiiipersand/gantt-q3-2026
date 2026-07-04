@@ -1510,3 +1510,162 @@ kbd {
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
 }
+
+/* ══════════════════════════════════════════════
+   MOBILE BOTTOM NAV + FAB (hidden on desktop)
+══════════════════════════════════════════════ */
+.mobile-bottom-nav {
+  display: none;
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 200;
+  height: 60px;
+  background: #0F172A;
+  border-top: 1px solid rgba(255,255,255,.08);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.mobile-nav-item {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 2px;
+  border: none; background: transparent;
+  color: rgba(255,255,255,.38); cursor: pointer;
+  font-family: inherit; transition: color .15s;
+  -webkit-tap-highlight-color: transparent;
+  padding: 8px 0;
+}
+.mobile-nav-item.active     { color: #818CF8; }
+.mobile-nav-item:active     { opacity: .7; }
+.mobile-nav-icon            { font-size: 19px; line-height: 1; }
+.mobile-nav-label           { font-size: 9px; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; }
+
+.mobile-fab {
+  display: none;
+  position: fixed; bottom: 76px; right: 20px; z-index: 150;
+  width: 54px; height: 54px; border-radius: 50%;
+  background: linear-gradient(135deg, #6366F1, #4F46E5);
+  color: #fff; font-size: 28px; font-weight: 300; line-height: 1;
+  border: none; cursor: pointer;
+  box-shadow: 0 4px 20px rgba(79,70,229,.55), 0 0 0 4px rgba(99,102,241,.12);
+  align-items: center; justify-content: center;
+  transition: transform .15s, box-shadow .15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.mobile-fab:active { transform: scale(.93); box-shadow: 0 2px 10px rgba(79,70,229,.5); }
+
+/* ══════════════════════════════════════════════
+   RESPONSIVE — ≤ 768px
+══════════════════════════════════════════════ */
+@media (max-width: 768px) {
+
+  /* CSS variable overrides for compact layout */
+  :root {
+    --col-assignee: 76px;
+    --col-init:     150px;
+    --col-status:   84px;
+    --label-w:      310px;
+    --week-w:       52px;
+    --row-h:        38px;
+    --header-h:     52px;
+    --toolbar-h:    auto;
+  }
+
+  /* Show mobile chrome */
+  .mobile-bottom-nav { display: flex; }
+  .mobile-fab        { display: flex; }
+
+  /* ── Header ── */
+  header { padding: 0 16px; height: var(--header-h); }
+  .header-sub,
+  .legend,
+  .header-divider,
+  .btn-add         { display: none; }
+  header h1        { font-size: 14px; }
+  .header-logo     { width: 28px; height: 28px; font-size: 12px; }
+
+  /* ── Layout ── */
+  .sidebar  { display: none; }
+  .app-body { flex-direction: column; }
+  .main-area {
+    height: calc(100dvh - var(--header-h) - 60px);
+    overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+
+  /* ── Toolbar ── */
+  .toolbar {
+    padding: 8px 12px; height: auto; min-height: 44px;
+    flex-wrap: wrap; gap: 6px; flex-shrink: 0;
+  }
+  .toolbar-sep    { display: none; }
+  .search-wrap    { flex: 1 1 100%; order: -1; }
+  .select-wrap    { flex: 1 1 calc(33% - 6px); min-width: 80px; }
+  .toolbar-stats  { font-size: 11px; order: 10; width: 100%; }
+  .shortcuts-hint { display: none; }
+
+  /* ── Gantt ── */
+  .gantt-outer {
+    flex: 1; overflow: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .gantt-header { position: sticky; top: 0; z-index: 10; }
+
+  /* ── Kanban ── */
+  .view-pane {
+    flex: 1; overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .kanban-board {
+    flex-direction: column;
+    width: 100%; padding: 12px 14px 80px; gap: 12px;
+  }
+  .kanban-col {
+    flex: none; width: 100%; max-height: none;
+  }
+  .kanban-cards { max-height: 320px; }
+
+  /* ── Dashboard ── */
+  .dashboard-body         { padding: 12px 14px 80px; }
+  .dash-charts-row        { grid-template-columns: 1fr !important; margin-bottom: 12px; }
+  .dash-chart-card        { padding: 14px 16px; }
+  .dash-donut-wrap        { gap: 12px; }
+  .heatmap-row            { grid-template-columns: 1fr 70px 90px 32px; }
+  .heatmap-pills          { display: none; }
+
+  /* ── Modals → bottom sheet ── */
+  .modal-overlay {
+    align-items: flex-end;
+    padding: 0;
+    backdrop-filter: blur(4px);
+  }
+  .modal-overlay .modal {
+    width: 100%; max-width: 100%;
+    border-radius: 20px 20px 0 0;
+    max-height: 92dvh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    margin: 0;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  /* Drag handle */
+  .modal::before {
+    content: '';
+    display: block;
+    width: 36px; height: 4px;
+    background: var(--border-2); border-radius: 99px;
+    margin: 12px auto 0;
+  }
+  .modal-header { padding-top: 10px; }
+
+  /* Small delete modal */
+  .modal.modal-sm { max-height: 65dvh; }
+
+  /* Bar picker: touch-friendly cells */
+  .bp-week { min-height: 32px; touch-action: none; }
+  .bar-picker { touch-action: none; }
+
+  /* Toast positioning above FAB */
+  .toast { bottom: 80px; }
+
+  /* Action buttons: larger tap targets */
+  .btn-edit, .btn-del {
+    width: 30px; height: 30px; font-size: 14px;
+  }
+}

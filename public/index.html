@@ -2,11 +2,15 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0F172A">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Q3 2026 Roadmap</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=20260704270004">
+<link rel="stylesheet" href="style.css?v=20260704270005">
 </head>
 <body>
 
@@ -411,6 +415,29 @@
   <button class="toast-dismiss" onclick="hideToast()">✕</button>
 </div>
 
-<script src="app.js?v=20260704270004"></script>
+<script src="app.js?v=20260704270005"></script>
+
+<!-- ── Mobile Bottom Nav ── -->
+<nav class="mobile-bottom-nav" id="mobile-nav">
+  <button class="mobile-nav-item active" id="mnav-gantt" onclick="switchView('gantt')">
+    <span class="mobile-nav-icon">📅</span>
+    <span class="mobile-nav-label">Gantt</span>
+  </button>
+  <button class="mobile-nav-item" id="mnav-kanban" onclick="switchView('kanban')">
+    <span class="mobile-nav-icon">📋</span>
+    <span class="mobile-nav-label">Kanban</span>
+  </button>
+  <button class="mobile-nav-item" id="mnav-dashboard" onclick="switchView('dashboard')">
+    <span class="mobile-nav-icon">📊</span>
+    <span class="mobile-nav-label">Dashboard</span>
+  </button>
+  <button class="mobile-nav-item" onclick="openManageModal('projects')">
+    <span class="mobile-nav-icon">⚙️</span>
+    <span class="mobile-nav-label">Manage</span>
+  </button>
+</nav>
+
+<!-- ── Mobile FAB ── -->
+<button class="mobile-fab" onclick="openModal()" aria-label="Add Initiative">+</button>
 </body>
 </html>

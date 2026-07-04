@@ -383,10 +383,11 @@ function renderActiveView() {
 function switchView(view) {
   currentView = view;
   ['gantt','kanban','dashboard'].forEach(v => {
-    document.getElementById(`view-${v}`).style.display   = v === view ? (v === 'gantt' ? 'block' : 'flex') : 'none';
+    document.getElementById(`view-${v}`).style.display = v === view ? (v === 'gantt' ? 'block' : 'flex') : 'none';
     document.getElementById(`vbtn-${v}`).classList.toggle('active', v === view);
+    const mb = document.getElementById(`mnav-${v}`);
+    if (mb) mb.classList.toggle('active', v === view);
   });
-  // Legend only relevant on Gantt
   const legend = document.getElementById('header-legend');
   if (legend) legend.style.display = view === 'gantt' ? 'flex' : 'none';
   renderActiveView();
@@ -1555,7 +1556,7 @@ function renderWorkload(todayWk) {
 }
 
 // ── Bar Picker ─────────────────────────────────────────────────────────────
-let bpDragging = false, bpStart = -1, bpEnd = -1, _bpMouseUpAdded = false;
+let bpDragging = false, bpStart = -1, bpEnd = -1, _bpMouseUpAdded = false, _bpTouchEndAdded = false;
 
 function buildBarPicker() {
   const picker      = document.getElementById('bar-picker');
@@ -1583,6 +1584,17 @@ function buildBarPicker() {
     cell.style.background = palette.picker;
     cell.addEventListener('mousedown', ev => { ev.preventDefault(); bpDragging = true; bpStart = bpEnd = wi; updateBP(); });
     cell.addEventListener('mouseenter', () => { if (bpDragging) { bpEnd = wi; updateBP(); } });
+    // Touch support
+    cell.addEventListener('touchstart', ev => {
+      ev.preventDefault();
+      bpDragging = true; bpStart = bpEnd = wi; updateBP();
+    }, { passive: false });
+    cell.addEventListener('touchmove', ev => {
+      ev.preventDefault();
+      const t = ev.touches[0];
+      const el = document.elementFromPoint(t.clientX, t.clientY);
+      if (el && el.dataset.idx !== undefined) { bpEnd = parseInt(el.dataset.idx); updateBP(); }
+    }, { passive: false });
     picker.appendChild(cell);
     const lbl = document.createElement('span');
     lbl.textContent = wi + 1;
@@ -1592,6 +1604,10 @@ function buildBarPicker() {
   if (!_bpMouseUpAdded) {
     document.addEventListener('mouseup', () => { bpDragging = false; });
     _bpMouseUpAdded = true;
+  }
+  if (!_bpTouchEndAdded) {
+    document.addEventListener('touchend', () => { bpDragging = false; });
+    _bpTouchEndAdded = true;
   }
 }
 
