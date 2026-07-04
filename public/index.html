@@ -6,7 +6,7 @@
 <title>Q3 2026 Roadmap</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=20260704270001">
+<link rel="stylesheet" href="style.css?v=20260704270003">
 </head>
 <body>
 
@@ -20,7 +20,7 @@
     </div>
   </div>
   <div class="header-right">
-    <div class="legend">
+    <div class="legend" id="header-legend">
       <div class="leg-item"><div class="leg-dot" style="background:#22C55E"></div>Done</div>
       <div class="leg-item"><div class="leg-dot" style="background:#3B82F6"></div>Active</div>
       <div class="leg-item"><div class="leg-dot" style="background:#F43F5E"></div>Blocked</div>
@@ -88,17 +88,17 @@
   </div>
   <div class="toolbar-sep"></div>
   <div class="select-wrap">
-    <select id="filter-project" onchange="renderActiveView()">
+    <select id="filter-project" onchange="renderActiveView();updateFilterBadges()">
       <option value="">All Projects</option>
     </select>
   </div>
   <div class="select-wrap">
-    <select id="filter-dev" onchange="renderActiveView()">
+    <select id="filter-dev" onchange="renderActiveView();updateFilterBadges()">
       <option value="">All Developers</option>
     </select>
   </div>
   <div class="select-wrap">
-    <select id="filter-status" onchange="renderActiveView()">
+    <select id="filter-status" onchange="renderActiveView();updateFilterBadges()">
       <option value="">All Statuses</option>
       <option value="active">Active</option>
       <option value="done">Done</option>
@@ -107,7 +107,15 @@
       <option value="unscheduled">Backlog</option>
     </select>
   </div>
+  <button class="btn-clear-filters" id="btn-clear-filters" onclick="clearFilters()" style="display:none">
+    ✕ Clear
+  </button>
   <div class="toolbar-stats" id="toolbar-stats"></div>
+  <div class="shortcuts-hint" id="shortcuts-hint">
+    <span><kbd>N</kbd> New</span>
+    <span><kbd>/</kbd> Search</span>
+    <span><kbd>G</kbd><kbd>K</kbd><kbd>D</kbd> Views</span>
+  </div>
 </div>
 
 <!-- ── Gantt View ── -->
@@ -209,6 +217,22 @@
               <option value="medium" selected>🟡 Medium</option>
               <option value="low">🟢 Low</option>
             </select>
+          </div>
+        </div>
+        <div class="form-grid" style="grid-template-columns:1fr auto">
+          <div class="form-group" style="margin-bottom:0">
+            <label>Progress <span class="label-hint">— completion %</span>
+              <span class="progress-val-label" id="f-progress-label">0%</span>
+            </label>
+            <input type="range" id="f-progress" min="0" max="100" step="5" value="0"
+              oninput="document.getElementById('f-progress-label').textContent=this.value+'%'">
+          </div>
+          <div class="form-group" style="margin-bottom:0;padding-top:4px">
+            <label>Milestone</label>
+            <label class="milestone-toggle">
+              <input type="checkbox" id="f-milestone">
+              <span class="milestone-toggle-label">◆ Mark as milestone</span>
+            </label>
           </div>
         </div>
         <div class="form-group">
@@ -380,6 +404,13 @@
   </div>
 </div>
 
-<script src="app.js?v=20260704270001"></script>
+<!-- ── Toast ── -->
+<div class="toast" id="toast">
+  <span class="toast-msg" id="toast-msg"></span>
+  <button class="toast-undo" id="toast-undo">Undo</button>
+  <button class="toast-dismiss" onclick="hideToast()">✕</button>
+</div>
+
+<script src="app.js?v=20260704270003"></script>
 </body>
 </html>

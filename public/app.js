@@ -434,55 +434,96 @@ function renderKanban() {
     header.innerHTML = `
       <span class="kanban-col-dot" style="background:${col.color}"></span>
       <span class="kanban-col-label">${col.label}</span>
-      <span class="tgh-count">${colTasks.length}</span>
+      <span class="kanban-col-count" style="background:${col.color}">${colTasks.length}</span>
       <button class="kanban-add-btn" title="Add" onclick="openModal(null,'${col.dropStatus}')">+</button>`;
     colEl.appendChild(header);
 
     const cards = document.createElement('div');
     cards.className = 'kanban-cards';
-    colTasks.forEach(t => cards.appendChild(buildKanbanCard(t)));
+    if (colTasks.length === 0) {
+      cards.innerHTML = `<div class="kanban-empty">
+        <div class="kanban-empty-icon">${col.id === 'done' ? '✓' : col.id === 'active' ? '⚡' : '📋'}</div>
+        <span>No items here</span>
+        <button class="kanban-empty-btn" onclick="openModal(null,'${col.dropStatus}')">+ Add item</button>
+      </div>`;
+    } else {
+      colTasks.forEach(t => cards.appendChild(buildKanbanCard(t)));
+    }
     colEl.appendChild(cards);
     board.appendChild(colEl);
   });
 }
 
 function buildKanbanCard(task) {
-  const card  = document.createElement('div');
+  const card = document.createElement('div');
   card.draggable  = true;
   card.dataset.id = task.id;
 
   card.addEventListener('dragstart', e => { e.dataTransfer.setData('taskId', task.id); card.classList.add('dragging'); });
   card.addEventListener('dragend',   () => card.classList.remove('dragging'));
 
-  const team     = allTeams.find(t => t.name === task.team);
-  const color    = team?.color || '#64748B';
-  const pm       = PRIORITY_META[task.priority || 'medium'];
-  const rag      = computeRAG(task);
-  const ragMeta  = rag ? RAG_META[rag] : null;
-  const progress = parseInt(task.progress) || 0;
-  const safeName = task.initiative.replace(/'/g, "\\'");
-  const isBlocked = task.status === 'blocked';
+  const team       = allTeams.find(t => t.name === task.team);
+  const color      = team?.color || '#64748B';
+  const pm         = PRIORITY_META[task.priority || 'medium'];
+  const rag        = computeRAG(task);
+  const ragMeta    = rag ? RAG_META[rag] : null;
+  const progress   = parseInt(task.progress) || 0;
+  const safeName   = task.initiative.replace(/'/g, "\\'");
+  const safeTitle  = task.initiative.replace(/"/g, '&quot;');
+  const isBlocked  = task.status === 'blocked';
+  const isDone     = task.status === 'done';
+  const todayWk    = currentWeekIndex();
+  const bs         = parseInt(task.bar_start);
+  const be         = parseInt(task.bar_end);
+  const isOverdue  = !isDone && be >= 0 && todayWk >= 0 && be < todayWk;
+  const isMilestone = !!parseInt(task.is_milestone);
 
-  card.className = 'kanban-card' + (isBlocked ? ' is-blocked-card' : '');
+  let cls = 'kanban-card';
+  if (isBlocked) cls += ' is-blocked-card';
+  if (isDone)    cls += ' is-done-card';
+  card.className = cls;
+
+  // Timeline row
+  let timelineHtml = '';
+  if (bs >= 0 && be >= 0 && WEEKS[bs] && WEEKS[be]) {
+    const timeStr = bs === be ? WEEKS[bs] : `${WEEKS[bs]} – ${WEEKS[be]}`;
+    timelineHtml = `<span class="kcard-timeline">${isMilestone ? '◆ ' : ''}${timeStr}</span>`;
+  } else if (isMilestone) {
+    timelineHtml = `<span class="kcard-timeline">◆ Milestone</span>`;
+  }
+
+  // Status chips
+  const blockedChip = isBlocked ? `<span class="kcard-chip kcard-chip-blocked">Blocked</span>` : '';
+  const overdueChip = isOverdue ? `<span class="kcard-chip kcard-chip-overdue">+${todayWk - be}w late</span>` : '';
+
+  // Progress row
+  const effectiveProgress = isDone ? 100 : progress;
+  const progressHtml = (effectiveProgress > 0)
+    ? `<div class="kcard-progress-row">
+        <div class="kcard-progress"><div class="kcard-progress-fill" style="width:${effectiveProgress}%"></div></div>
+        <span class="kcard-progress-pct" style="${isDone ? 'color:#22C55E' : ''}">${effectiveProgress}%</span>
+      </div>`
+    : '';
 
   card.innerHTML = `
     <div class="kcard-top">
-      <div style="display:flex;align-items:center;gap:5px">
+      <div class="kcard-top-left">
         ${ragMeta ? `<span class="rag-dot ${ragMeta.dot}" title="${ragMeta.label}"></span>` : ''}
         <span class="priority-badge ${pm.cls}">${pm.label}</span>
-        ${isBlocked ? `<span style="font-size:9px;color:#BE123C;font-weight:700">● Blocked</span>` : ''}
+        ${blockedChip}${overdueChip}
       </div>
       <div class="kcard-actions">
         <button class="btn-edit" onclick="openModal(${task.id})" title="Edit">✎</button>
         <button class="btn-del"  onclick="openDelete(${task.id},'${safeName}')" title="Delete">✕</button>
       </div>
     </div>
-    <div class="kcard-title">${task.initiative}</div>
+    <div class="kcard-title" title="${safeTitle}">${isDone ? '✓ ' : ''}${task.initiative}</div>
+    ${timelineHtml || overdueChip ? `<div class="kcard-meta-row">${timelineHtml}</div>` : ''}
+    ${progressHtml}
     <div class="kcard-footer">
       <span class="kcard-project" style="border-left:3px solid ${color};padding-left:6px">${task.team}</span>
       ${task.owner ? `<span class="kcard-owner"><span class="cell-assignee-avatar" style="background:${color};width:18px;height:18px;font-size:9px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;color:#fff;font-weight:700">${task.owner[0].toUpperCase()}</span> ${task.owner}</span>` : ''}
-    </div>
-    ${progress > 0 ? `<div class="kcard-progress"><div class="kcard-progress-fill" style="width:${progress}%"></div></div>` : ''}`;
+    </div>`;
 
   return card;
 }
