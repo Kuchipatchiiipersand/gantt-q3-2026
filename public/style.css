@@ -1185,3 +1185,230 @@ header h1 { font-size: 15px; font-weight: 700; color: #fff; letter-spacing: -.2p
 .workload-grid::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 99px; }
 .gantt-outer::-webkit-scrollbar-thumb:hover,
 .workload-grid::-webkit-scrollbar-thumb:hover { background: var(--text-3); }
+
+/* ══════════════════════════════════════════════
+   RAG STATUS INDICATORS
+══════════════════════════════════════════════ */
+.rag-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  flex-shrink: 0; display: inline-block;
+}
+.rag-on_track { background: #22C55E; box-shadow: 0 0 0 2px rgba(34,197,94,.2); }
+.rag-at_risk  { background: #F59E0B; box-shadow: 0 0 0 2px rgba(245,158,11,.2); }
+.rag-critical { background: #EF4444; box-shadow: 0 0 0 2px rgba(239,68,68,.2); }
+
+.rag-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 7px; border-radius: 99px;
+  font-size: 10px; font-weight: 700;
+  white-space: nowrap; flex-shrink: 0;
+  border: 1px solid transparent;
+}
+.rag-badge.rag-on_track { background: #F0FDF4; color: #15803D; border-color: #BBF7D0; }
+.rag-badge.rag-at_risk  { background: #FFFBEB; color: #B45309; border-color: #FDE68A; }
+.rag-badge.rag-critical { background: #FFF1F2; color: #BE123C; border-color: #FECDD3; }
+
+/* ── Milestone diamond ── */
+.milestone-diamond {
+  position: absolute;
+  width: 18px; height: 18px;
+  transform: rotate(45deg);
+  border-radius: 3px;
+  z-index: 5; cursor: pointer;
+  top: 50%; margin-top: -9px;
+  box-shadow: 0 2px 6px rgba(0,0,0,.25);
+  transition: transform .15s, box-shadow .15s;
+}
+.milestone-diamond:hover {
+  transform: rotate(45deg) scale(1.2);
+  box-shadow: 0 3px 10px rgba(0,0,0,.35);
+}
+.milestone-label {
+  position: absolute; top: calc(50% + 13px);
+  font-size: 9px; font-weight: 700;
+  white-space: nowrap; color: rgba(255,255,255,.8);
+  text-shadow: 0 1px 3px rgba(0,0,0,.6);
+  transform: translateX(-50%);
+  pointer-events: none;
+  letter-spacing: .3px;
+}
+
+/* ── Overdue extension ── */
+.overdue-ext {
+  position: absolute; height: 6px;
+  top: 50%; transform: translateY(-50%);
+  background: repeating-linear-gradient(
+    90deg,
+    rgba(239,68,68,.75) 0px, rgba(239,68,68,.75) 4px,
+    rgba(239,68,68,.2)  4px, rgba(239,68,68,.2)  8px
+  );
+  border-radius: 0 4px 4px 0;
+  pointer-events: none; z-index: 3;
+}
+.overdue-badge {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  background: #EF4444; color: #fff;
+  font-size: 8px; font-weight: 800;
+  padding: 1px 5px; border-radius: 99px;
+  pointer-events: none; z-index: 6;
+  white-space: nowrap; letter-spacing: .3px;
+}
+
+/* ── Bar progress strip ── */
+.bar-progress-strip {
+  position: absolute; bottom: 0; left: 0; height: 3px;
+  background: rgba(255,255,255,.85);
+  border-radius: 0 0 0 6px;
+  pointer-events: none;
+  transition: width .3s ease;
+}
+
+/* ── Progress slider in form ── */
+input[type=range] {
+  width: 100%; height: 4px;
+  -webkit-appearance: none;
+  background: var(--border-2);
+  border-radius: 99px; outline: none;
+  cursor: pointer; margin-top: 10px;
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 1px 4px rgba(79,70,229,.4);
+  cursor: pointer;
+  transition: transform .1s;
+}
+input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.2); }
+.progress-val-label {
+  float: right; font-size: 11px; font-weight: 700;
+  color: var(--accent); background: #EEF2FF;
+  padding: 1px 7px; border-radius: 99px;
+  margin-left: 8px;
+}
+
+/* ── Milestone toggle in form ── */
+.milestone-toggle {
+  display: flex; align-items: center; gap: 7px;
+  cursor: pointer; user-select: none;
+  font-size: 13px; color: var(--text-2); font-weight: 400;
+  margin-top: 6px;
+}
+.milestone-toggle input { accent-color: var(--accent); width: 15px; height: 15px; cursor: pointer; }
+.milestone-toggle-label { flex: 1; }
+
+/* ── Kanban card — blocked state in In Progress column ── */
+.kanban-card.is-blocked-card {
+  border-left: 3px solid #F43F5E;
+}
+.kanban-card .kcard-progress {
+  height: 3px; background: var(--border);
+  border-radius: 99px; margin-top: 8px; overflow: hidden;
+}
+.kanban-card .kcard-progress-fill {
+  height: 100%; border-radius: 99px;
+  background: linear-gradient(90deg, #6366F1, #22C55E);
+  transition: width .3s ease;
+}
+
+/* ══════════════════════════════════════════════
+   FILTER BADGES + CLEAR BUTTON
+══════════════════════════════════════════════ */
+.select-wrap.filter-active select {
+  border-color: var(--accent-2);
+  background: #EEF2FF;
+  color: var(--accent);
+  font-weight: 600;
+}
+.select-wrap.filter-active::after { color: var(--accent); }
+
+.btn-clear-filters {
+  display: flex; align-items: center; gap: 5px;
+  height: 34px; padding: 0 12px;
+  border: 1px solid #C7D2FE; border-radius: var(--radius-sm);
+  background: #EEF2FF; color: var(--accent);
+  font-size: 12px; font-weight: 600; font-family: inherit;
+  cursor: pointer; white-space: nowrap;
+  transition: all .12s;
+}
+.btn-clear-filters:hover { background: #C7D2FE; }
+
+/* ══════════════════════════════════════════════
+   KEYBOARD SHORTCUTS HINT
+══════════════════════════════════════════════ */
+.shortcuts-hint {
+  margin-left: auto;
+  display: flex; align-items: center; gap: 12px;
+  font-size: 11px; color: var(--text-3);
+}
+.shortcuts-hint span { display: flex; align-items: center; gap: 3px; }
+kbd {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 1px 5px; border-radius: 4px;
+  background: var(--bg); border: 1px solid var(--border-2);
+  font-size: 10px; font-weight: 600; font-family: inherit;
+  color: var(--text-2); line-height: 1.4;
+  box-shadow: 0 1px 0 var(--border-2);
+}
+
+/* ══════════════════════════════════════════════
+   TOAST NOTIFICATIONS
+══════════════════════════════════════════════ */
+.toast {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(12px);
+  display: flex; align-items: center; gap: 12px;
+  background: #1E293B; color: #fff;
+  padding: 12px 16px; border-radius: var(--radius);
+  font-size: 13px; font-weight: 500;
+  box-shadow: 0 8px 24px rgba(0,0,0,.25), 0 0 0 1px rgba(255,255,255,.06);
+  z-index: 500;
+  opacity: 0; pointer-events: none;
+  transition: opacity .2s, transform .2s cubic-bezier(.16,1,.3,1);
+  white-space: nowrap;
+}
+.toast.visible {
+  opacity: 1; pointer-events: all;
+  transform: translateX(-50%) translateY(0);
+}
+.toast-msg { flex: 1; }
+.toast-undo {
+  background: rgba(99,102,241,.25); color: #A5B4FC;
+  border: 1px solid rgba(99,102,241,.4); border-radius: 5px;
+  padding: 4px 10px; font-size: 12px; font-weight: 600;
+  font-family: inherit; cursor: pointer;
+  transition: background .12s;
+}
+.toast-undo:hover { background: rgba(99,102,241,.45); }
+.toast-dismiss {
+  background: transparent; border: none;
+  color: rgba(255,255,255,.4); font-size: 14px;
+  cursor: pointer; padding: 0 2px; line-height: 1;
+  transition: color .12s;
+}
+.toast-dismiss:hover { color: rgba(255,255,255,.8); }
+
+/* ══════════════════════════════════════════════
+   ONBOARDING EMPTY STATE
+══════════════════════════════════════════════ */
+.empty-state .btn-primary {
+  margin-top: 16px;
+  display: inline-flex;
+}
+.empty-state-steps {
+  display: flex; gap: 12px; margin-top: 20px; justify-content: center;
+  flex-wrap: wrap;
+}
+.empty-step {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 10px 16px;
+  font-size: 12px; color: var(--text-2);
+}
+.empty-step-num {
+  width: 20px; height: 20px; border-radius: 50%;
+  background: var(--accent); color: #fff;
+  font-size: 11px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}

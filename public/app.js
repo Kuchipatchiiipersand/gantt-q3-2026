@@ -89,12 +89,34 @@ const PRIORITY_META = {
 };
 
 const KANBAN_COLS = [
-  { status: 'unscheduled', label: 'Backlog',      color: '#94A3B8' },
-  { status: 'pending',     label: 'Pending',       color: '#F59E0B' },
-  { status: 'active',      label: 'In Progress',   color: '#3B82F6' },
-  { status: 'blocked',     label: 'Blocked',       color: '#F43F5E' },
-  { status: 'done',        label: 'Done',          color: '#22C55E' },
+  { id: 'todo',   statuses: ['unscheduled','pending'], dropStatus: 'pending',  label: 'Backlog',      color: '#94A3B8' },
+  { id: 'active', statuses: ['active','blocked'],      dropStatus: 'active',   label: 'In Progress',  color: '#3B82F6' },
+  { id: 'done',   statuses: ['done'],                  dropStatus: 'done',     label: 'Done',         color: '#22C55E' },
 ];
+
+// ── RAG: auto-computed health status ─────────────────────────────────────
+function computeRAG(task) {
+  if (task.status === 'done' || task.status === 'unscheduled' || task.status === 'pending') return null;
+  const bs = parseInt(task.bar_start), be = parseInt(task.bar_end);
+  if (bs < 0 || be < 0) return null;
+  const todayWk  = currentWeekIndex();
+  if (task.status === 'blocked') return 'critical';
+  if (be < todayWk) return 'critical';                      // overdue
+  if (be - todayWk <= 2) return 'at_risk';                  // ending soon
+  // behind on progress vs elapsed time
+  const elapsed  = Math.max(0, todayWk - bs);
+  const total    = be - bs + 1;
+  const expected = total > 0 ? (elapsed / total) * 100 : 0;
+  const actual   = parseInt(task.progress) || 0;
+  if (expected > 55 && actual < 25) return 'at_risk';
+  return 'on_track';
+}
+
+const RAG_META = {
+  on_track: { label: 'On Track', dot: 'rag-on_track' },
+  at_risk:  { label: 'At Risk',  dot: 'rag-at_risk' },
+  critical: { label: 'Critical', dot: 'rag-critical' },
+};
 
 let currentView = 'gantt';
 
@@ -137,6 +159,69 @@ function saveSettings() {
   resetBarPicker();
   renderGantt();
   closeSettings();
+}
+
+// ── Toast ─────────────────────────────────────────────────────────────────
+let toastTimer = null;
+
+function showToast(msg, undoFn = null) {
+  clearTimeout(toastTimer);
+  document.getElementById('toast-msg').textContent = msg;
+  const undoBtn = document.getElementById('toast-undo');
+  if (undoFn) {
+    undoBtn.style.display = 'inline-block';
+    undoBtn.onclick = () => { clearTimeout(toastTimer); hideToast(); undoFn(); };
+  } else {
+    undoBtn.style.display = 'none';
+  }
+  document.getElementById('toast').classList.add('visible');
+  toastTimer = setTimeout(hideToast, 5000);
+}
+
+function hideToast() {
+  document.getElementById('toast').classList.remove('visible');
+}
+
+// ── Filters ───────────────────────────────────────────────────────────────
+function updateFilterBadges() {
+  const proj = document.getElementById('filter-project').value;
+  const dev  = document.getElementById('filter-dev').value;
+  const stat = document.getElementById('filter-status').value;
+  document.getElementById('filter-project').closest('.select-wrap').classList.toggle('filter-active', !!proj);
+  document.getElementById('filter-dev').closest('.select-wrap').classList.toggle('filter-active', !!dev);
+  document.getElementById('filter-status').closest('.select-wrap').classList.toggle('filter-active', !!stat);
+  const clearBtn = document.getElementById('btn-clear-filters');
+  if (clearBtn) clearBtn.style.display = (proj || dev || stat) ? 'flex' : 'none';
+}
+
+function clearFilters() {
+  document.getElementById('filter-project').value = '';
+  document.getElementById('filter-dev').value     = '';
+  document.getElementById('filter-status').value  = '';
+  document.getElementById('search').value         = '';
+  updateFilterBadges();
+  renderActiveView();
+}
+
+// ── Keyboard shortcuts ────────────────────────────────────────────────────
+function initKeyboardShortcuts() {
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      document.querySelectorAll('.modal-overlay.open').forEach(m => m.classList.remove('open'));
+      hideToast();
+      return;
+    }
+    const tag = (e.target.tagName || '').toLowerCase();
+    if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.target.isContentEditable) return;
+    if (document.querySelector('.modal-overlay.open')) return;
+    switch (e.key) {
+      case 'n': case 'N': e.preventDefault(); openModal(); break;
+      case 'g': case 'G': e.preventDefault(); switchView('gantt'); break;
+      case 'k': case 'K': e.preventDefault(); switchView('kanban'); break;
+      case 'd': case 'D': e.preventDefault(); switchView('dashboard'); break;
+      case '/': e.preventDefault(); document.getElementById('search').focus(); break;
+    }
+  });
 }
 
 // ── Sidebar toggle ────────────────────────────────────────────────────────
@@ -185,9 +270,11 @@ async function boot() {
   buildWeekHeaders();
   applyConfigToDOM();
   initSidebar();
+  initKeyboardShortcuts();
   await Promise.all([loadTeams(), loadTasks(), loadDevelopers()]);
   populateProjectSelects();
   buildBarPicker();
+  updateFilterBadges();
   renderGantt();
 }
 
@@ -299,6 +386,9 @@ function switchView(view) {
     document.getElementById(`view-${v}`).style.display   = v === view ? (v === 'gantt' ? 'block' : 'flex') : 'none';
     document.getElementById(`vbtn-${v}`).classList.toggle('active', v === view);
   });
+  // Legend only relevant on Gantt
+  const legend = document.getElementById('header-legend');
+  if (legend) legend.style.display = view === 'gantt' ? 'flex' : 'none';
   renderActiveView();
 }
 
@@ -320,10 +410,10 @@ function renderKanban() {
 
   board.innerHTML = '';
   KANBAN_COLS.forEach(col => {
-    const colTasks = tasks.filter(t => t.status === col.status);
+    const colTasks = tasks.filter(t => col.statuses.includes(t.status));
     const colEl = document.createElement('div');
     colEl.className = 'kanban-col';
-    colEl.dataset.status = col.status;
+    colEl.dataset.col = col.id;
 
     colEl.addEventListener('dragover',  e => { e.preventDefault(); colEl.classList.add('drag-over'); });
     colEl.addEventListener('dragleave', ()  => colEl.classList.remove('drag-over'));
@@ -332,8 +422,8 @@ function renderKanban() {
       colEl.classList.remove('drag-over');
       const taskId = parseInt(e.dataTransfer.getData('taskId'));
       const task   = allTasks.find(t => t.id === taskId);
-      if (!task || task.status === col.status) return;
-      const payload = { ...task, status: col.status, is_blocked: col.status === 'blocked' ? 1 : 0 };
+      if (!task || col.statuses.includes(task.status)) return;
+      const payload = { ...task, status: col.dropStatus, is_blocked: col.dropStatus === 'blocked' ? 1 : 0 };
       await fetch(`${API}/api/tasks/${taskId}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
       await loadTasks();
       renderKanban();
@@ -345,7 +435,7 @@ function renderKanban() {
       <span class="kanban-col-dot" style="background:${col.color}"></span>
       <span class="kanban-col-label">${col.label}</span>
       <span class="tgh-count">${colTasks.length}</span>
-      <button class="kanban-add-btn" title="Add to ${col.label}" onclick="openModal();document.getElementById('f-status').value='${col.status}'">+</button>`;
+      <button class="kanban-add-btn" title="Add" onclick="openModal(null,'${col.dropStatus}')">+</button>`;
     colEl.appendChild(header);
 
     const cards = document.createElement('div');
@@ -358,22 +448,30 @@ function renderKanban() {
 
 function buildKanbanCard(task) {
   const card  = document.createElement('div');
-  card.className  = 'kanban-card';
   card.draggable  = true;
   card.dataset.id = task.id;
 
   card.addEventListener('dragstart', e => { e.dataTransfer.setData('taskId', task.id); card.classList.add('dragging'); });
   card.addEventListener('dragend',   () => card.classList.remove('dragging'));
 
-  const team    = allTeams.find(t => t.name === task.team);
-  const color   = team?.color || '#64748B';
-  const pm      = PRIORITY_META[task.priority || 'medium'];
-  const sm      = STATUS_META[task.status]   || STATUS_META.active;
+  const team     = allTeams.find(t => t.name === task.team);
+  const color    = team?.color || '#64748B';
+  const pm       = PRIORITY_META[task.priority || 'medium'];
+  const rag      = computeRAG(task);
+  const ragMeta  = rag ? RAG_META[rag] : null;
+  const progress = parseInt(task.progress) || 0;
   const safeName = task.initiative.replace(/'/g, "\\'");
+  const isBlocked = task.status === 'blocked';
+
+  card.className = 'kanban-card' + (isBlocked ? ' is-blocked-card' : '');
 
   card.innerHTML = `
     <div class="kcard-top">
-      <span class="priority-badge ${pm.cls}">${pm.label}</span>
+      <div style="display:flex;align-items:center;gap:5px">
+        ${ragMeta ? `<span class="rag-dot ${ragMeta.dot}" title="${ragMeta.label}"></span>` : ''}
+        <span class="priority-badge ${pm.cls}">${pm.label}</span>
+        ${isBlocked ? `<span style="font-size:9px;color:#BE123C;font-weight:700">● Blocked</span>` : ''}
+      </div>
       <div class="kcard-actions">
         <button class="btn-edit" onclick="openModal(${task.id})" title="Edit">✎</button>
         <button class="btn-del"  onclick="openDelete(${task.id},'${safeName}')" title="Delete">✕</button>
@@ -383,7 +481,8 @@ function buildKanbanCard(task) {
     <div class="kcard-footer">
       <span class="kcard-project" style="border-left:3px solid ${color};padding-left:6px">${task.team}</span>
       ${task.owner ? `<span class="kcard-owner"><span class="cell-assignee-avatar" style="background:${color};width:18px;height:18px;font-size:9px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;color:#fff;font-weight:700">${task.owner[0].toUpperCase()}</span> ${task.owner}</span>` : ''}
-    </div>`;
+    </div>
+    ${progress > 0 ? `<div class="kcard-progress"><div class="kcard-progress-fill" style="width:${progress}%"></div></div>` : ''}`;
 
   return card;
 }
@@ -393,12 +492,19 @@ function renderDashboard() {
   const body = document.getElementById('dashboard-body');
 
   const byStatus = s => allTasks.filter(t => t.status === s).length;
+  const todayWk   = currentWeekIndex();
+  const atRisk    = allTasks.filter(t => computeRAG(t) === 'at_risk');
+  const overdue   = allTasks.filter(t => {
+    const be = parseInt(t.bar_end);
+    return t.status !== 'done' && be >= 0 && be < todayWk;
+  });
+
   const stats = [
-    { label: 'In Progress', value: byStatus('active'),      color: '#3B82F6' },
-    { label: 'Blocked',     value: byStatus('blocked'),     color: '#F43F5E' },
-    { label: 'Pending',     value: byStatus('pending'),     color: '#F59E0B' },
-    { label: 'Done',        value: byStatus('done'),        color: '#22C55E' },
-    { label: 'Backlog',     value: byStatus('unscheduled'), color: '#94A3B8' },
+    { label: 'In Progress', value: byStatus('active'),  color: '#3B82F6' },
+    { label: 'Blocked',     value: byStatus('blocked'), color: '#F43F5E' },
+    { label: 'At Risk',     value: atRisk.length,       color: '#F59E0B' },
+    { label: 'Done',        value: byStatus('done'),    color: '#22C55E' },
+    { label: 'Overdue',     value: overdue.length,      color: '#EF4444' },
   ];
 
   let html = `<div class="dash-stats">${stats.map(s => `
@@ -407,7 +513,7 @@ function renderDashboard() {
       <div class="dash-stat-label">${s.label}</div>
     </div>`).join('')}</div>`;
 
-  // Per-project progress
+  // Per-project progress (using average task progress)
   html += `<div class="dash-section"><div class="dash-section-title">Projects Overview</div><div class="dash-projects">`;
   allTeams.forEach(team => {
     const tasks       = allTasks.filter(t => t.team === team.name);
@@ -415,47 +521,65 @@ function renderDashboard() {
     const doneCount   = tasks.filter(t => t.status === 'done').length;
     const activeCount = tasks.filter(t => t.status === 'active').length;
     const blkCount    = tasks.filter(t => t.status === 'blocked').length;
-    const pct         = Math.round(doneCount / tasks.length * 100);
+    const atRiskCount = tasks.filter(t => computeRAG(t) === 'at_risk').length;
+    // avg progress: done tasks = 100%, others use their progress field
+    const avgPct = Math.round(tasks.reduce((sum, t) => sum + (t.status === 'done' ? 100 : (parseInt(t.progress) || 0)), 0) / tasks.length);
     html += `<div class="dash-project-row">
       <div class="dash-proj-name"><span class="tgh-dot" style="background:${team.color}"></span>${team.name}</div>
-      <div class="dash-proj-bar"><div class="dash-proj-fill" style="width:${pct}%;background:${team.color}"></div></div>
-      <div class="dash-proj-pct">${pct}%</div>
+      <div class="dash-proj-bar"><div class="dash-proj-fill" style="width:${avgPct}%;background:${team.color}"></div></div>
+      <div class="dash-proj-pct">${avgPct}%</div>
       <div class="dash-proj-pills">
-        ${activeCount ? `<span class="dash-pill dp-active">${activeCount} active</span>` : ''}
-        ${blkCount   ? `<span class="dash-pill dp-blocked">${blkCount} blocked</span>` : ''}
+        ${activeCount  ? `<span class="dash-pill dp-active">${activeCount} active</span>` : ''}
+        ${blkCount     ? `<span class="dash-pill dp-blocked">${blkCount} blocked</span>` : ''}
+        ${atRiskCount  ? `<span class="dash-pill" style="background:#FFFBEB;color:#B45309;border:1px solid #FDE68A">${atRiskCount} at risk</span>` : ''}
         <span class="dash-pill dp-total">${tasks.length} total</span>
       </div>
     </div>`;
   });
   html += `</div></div>`;
 
-  // Blocked items
-  const blocked = allTasks.filter(t => t.status === 'blocked');
-  if (blocked.length) {
-    html += `<div class="dash-section"><div class="dash-section-title dash-title-blocked">⚠ Blocked (${blocked.length})</div><div class="dash-list">`;
-    blocked.forEach(t => {
-      const c = allTeams.find(x => x.name === t.team)?.color || '#64748B';
+  // At Risk items
+  if (atRisk.length) {
+    html += `<div class="dash-section"><div class="dash-section-title" style="color:#B45309">🟡 At Risk (${atRisk.length})</div><div class="dash-list">`;
+    atRisk.forEach(t => {
+      const c  = allTeams.find(x => x.name === t.team)?.color || '#64748B';
+      const be = parseInt(t.bar_end);
+      const weeksLeft = be >= 0 ? be - todayWk : null;
       html += `<div class="dash-list-item">
-        <span class="tgh-dot" style="background:${c}"></span>
+        <span class="rag-dot rag-at_risk"></span>
         <span class="dash-item-name">${t.initiative}</span>
-        <span class="dash-item-meta">${t.team}${t.owner ? ' · ' + t.owner : ''}</span>
+        <span class="dash-item-meta">${t.team}${weeksLeft !== null ? ` · ${weeksLeft} wks left` : ''}</span>
         <button class="btn-edit" onclick="openModal(${t.id})" title="Edit">✎</button>
       </div>`;
     });
     html += `</div></div>`;
   }
 
-  // High priority open items
-  const high = allTasks.filter(t => t.priority === 'high' && t.status !== 'done');
-  if (high.length) {
-    html += `<div class="dash-section"><div class="dash-section-title dash-title-high">🔴 High Priority Open (${high.length})</div><div class="dash-list">`;
-    high.forEach(t => {
-      const c  = allTeams.find(x => x.name === t.team)?.color || '#64748B';
-      const sm = STATUS_META[t.status] || STATUS_META.active;
+  // Overdue items
+  if (overdue.length) {
+    html += `<div class="dash-section"><div class="dash-section-title dash-title-blocked">⚠ Overdue (${overdue.length})</div><div class="dash-list">`;
+    overdue.forEach(t => {
+      const c = allTeams.find(x => x.name === t.team)?.color || '#64748B';
+      const weeksLate = todayWk - parseInt(t.bar_end);
+      html += `<div class="dash-list-item">
+        <span class="rag-dot rag-critical"></span>
+        <span class="dash-item-name">${t.initiative}</span>
+        <span class="dash-item-meta" style="color:#BE123C">${t.team} · ${weeksLate} wks late</span>
+        <button class="btn-edit" onclick="openModal(${t.id})" title="Edit">✎</button>
+      </div>`;
+    });
+    html += `</div></div>`;
+  }
+
+  // Blocked items
+  const blocked = allTasks.filter(t => t.status === 'blocked');
+  if (blocked.length) {
+    html += `<div class="dash-section"><div class="dash-section-title dash-title-blocked">🔴 Blocked (${blocked.length})</div><div class="dash-list">`;
+    blocked.forEach(t => {
+      const c = allTeams.find(x => x.name === t.team)?.color || '#64748B';
       html += `<div class="dash-list-item">
         <span class="tgh-dot" style="background:${c}"></span>
         <span class="dash-item-name">${t.initiative}</span>
-        <span class="status-chip ${sm.cls}" style="padding:2px 8px;font-size:9px"><span class="chip-dot"></span>${sm.label}</span>
         <span class="dash-item-meta">${t.team}${t.owner ? ' · ' + t.owner : ''}</span>
         <button class="btn-edit" onclick="openModal(${t.id})" title="Edit">✎</button>
       </div>`;
@@ -563,18 +687,40 @@ function renderGantt() {
     });
   }
 
-  if (totalRows === 0 && backlog.length === 0) {
+  if (allTeams.length === 0) {
+    body.innerHTML = `<div class="empty-state">
+      <div class="empty-state-icon">🚀</div>
+      <h3>Welcome! Let's set up your roadmap.</h3>
+      <p>You need a project and at least one developer before adding initiatives.</p>
+      <div class="empty-state-steps">
+        <div class="empty-step"><span class="empty-step-num">1</span>Create a Project</div>
+        <div class="empty-step"><span class="empty-step-num">2</span>Add Developers</div>
+        <div class="empty-step"><span class="empty-step-num">3</span>Add Initiatives</div>
+      </div>
+      <button class="btn-primary" onclick="openManageModal('projects')" style="margin-top:20px">
+        Get Started →
+      </button>
+    </div>`;
+  } else if (totalRows === 0 && backlog.length === 0) {
+    const hasFilters = document.getElementById('search').value
+      || document.getElementById('filter-project').value
+      || document.getElementById('filter-dev').value
+      || document.getElementById('filter-status').value;
     body.innerHTML = `<div class="empty-state">
       <div class="empty-state-icon">📋</div>
-      <h3>No initiatives found</h3>
-      <p>Try adjusting your filters or add a new initiative.</p>
+      <h3>${hasFilters ? 'No results match your filters' : 'No initiatives yet'}</h3>
+      <p>${hasFilters ? 'Try adjusting or clearing your filters.' : 'Add your first initiative to get started.'}</p>
+      ${hasFilters
+        ? `<button class="btn-primary" onclick="clearFilters()" style="margin-top:16px">Clear filters</button>`
+        : `<button class="btn-primary" onclick="openModal()" style="margin-top:16px">Add Initiative</button>`}
     </div>`;
   }
 
   const statsEl = document.getElementById('toolbar-stats');
   if (statsEl) {
     const blocked = filtered.filter(t => t.status === 'blocked').length;
-    statsEl.textContent = `${filtered.length} total${blocked ? ` · ${blocked} blocked` : ''}`;
+    const overdueCount = filtered.filter(t => { const be=parseInt(t.bar_end); return t.status!=='done'&&be>=0&&be<currentWeekIndex(); }).length;
+    statsEl.innerHTML = `${filtered.length} total${blocked ? ` &nbsp;·&nbsp; <span style="color:#EF4444">${blocked} blocked</span>` : ''}${overdueCount ? ` &nbsp;·&nbsp; <span style="color:#EF4444">${overdueCount} overdue</span>` : ''}`;
   }
 }
 
@@ -593,12 +739,16 @@ function buildTaskRow(task, teamColor, todayWk = -1) {
   ca.title = task.owner || '';
   row.appendChild(ca);
 
-  // Initiative cell
+  // Initiative cell — with RAG dot
+  const rag      = computeRAG(task);
+  const ragMeta  = rag ? RAG_META[rag] : null;
   const ci = document.createElement('div');
   ci.className = 'cell-init';
   const safeTitle = (task.outcome || task.initiative).replace(/"/g, '&quot;');
   const safeName  = task.initiative.replace(/'/g, "\\'");
   ci.innerHTML = `
+    ${ragMeta ? `<span class="rag-dot ${ragMeta.dot}" title="${ragMeta.label}" style="flex-shrink:0"></span>` : ''}
+    ${task.is_milestone ? '<span title="Milestone" style="font-size:11px;flex-shrink:0">◆</span>' : ''}
     <span class="cell-init-text" title="${safeTitle}">${task.initiative}</span>
     <div class="row-actions">
       <button class="btn-edit" title="Edit" onclick="openModal(${task.id})">✎</button>
@@ -610,9 +760,15 @@ function buildTaskRow(task, teamColor, todayWk = -1) {
   const cs = document.createElement('div');
   cs.className = 'cell-status';
   const sm = STATUS_META[task.status] || STATUS_META.active;
-  cs.innerHTML = `<span class="status-chip ${sm.cls}" title="${task.target || ''}">
-    <span class="chip-dot"></span>${sm.label}
-  </span>`;
+  const progress = parseInt(task.progress) || 0;
+  cs.innerHTML = `<div style="display:flex;flex-direction:column;gap:3px;width:100%">
+    <span class="status-chip ${sm.cls}" title="${task.target || ''}">
+      <span class="chip-dot"></span>${sm.label}
+    </span>
+    ${progress > 0 ? `<div style="height:3px;background:var(--border);border-radius:99px;overflow:hidden;margin:0 2px">
+      <div style="height:100%;width:${progress}%;background:${task.bar_color||teamColor};border-radius:99px;transition:width .3s"></div>
+    </div>` : ''}
+  </div>`;
   row.appendChild(cs);
 
   // Bar area
@@ -639,18 +795,64 @@ function buildTaskRow(task, teamColor, todayWk = -1) {
   });
 
   const bs = parseInt(task.bar_start), be = parseInt(task.bar_end);
-  if (bs >= 0 && be >= 0 && be >= bs) {
+  const barColor = task.bar_color || teamColor;
+
+  if (task.is_milestone && bs >= 0) {
+    // ◆ Milestone diamond
+    const diamond = document.createElement('div');
+    diamond.className = 'milestone-diamond';
+    diamond.style.left = `${bs * 70 + 31}px`;
+    diamond.style.background = barColor;
+    diamond.title = task.initiative;
+    diamond.onclick = () => openModal(task.id);
+    cb.appendChild(diamond);
+    const mlabel = document.createElement('div');
+    mlabel.className = 'milestone-label';
+    mlabel.style.left = `${bs * 70 + 40}px`;
+    mlabel.textContent = task.initiative.length > 12 ? task.initiative.slice(0, 11) + '…' : task.initiative;
+    cb.appendChild(mlabel);
+  } else if (bs >= 0 && be >= 0 && be >= bs) {
     const bar = document.createElement('div');
     bar.className = 'bar'
       + (task.is_blocked && task.status !== 'done' ? ' striped' : '')
       + (task.status === 'done' ? ' done-bar' : '');
     bar.style.left       = `${bs * 70 + 4}px`;
     bar.style.width      = `${(be - bs + 1) * 70 - 8}px`;
-    bar.style.background = task.bar_color || teamColor;
+    bar.style.background = barColor;
     bar.title            = [task.initiative, task.target, task.dependencies].filter(Boolean).join('\n');
-    bar.textContent      = task.status === 'done' ? '✓' : '';
     bar.onclick          = () => openModal(task.id);
+
+    // Progress strip inside bar
+    if (progress > 0 && task.status !== 'done') {
+      const strip = document.createElement('div');
+      strip.className = 'bar-progress-strip';
+      strip.style.width = `${progress}%`;
+      bar.appendChild(strip);
+    }
+
+    // Bar label: ✓ for done, "+Nw" for overdue
+    if (task.status === 'done') {
+      bar.insertAdjacentText('afterbegin', '✓ ');
+    } else if (todayWk >= 0 && be < todayWk) {
+      bar.insertAdjacentText('afterbegin', `+${todayWk - be}w `);
+    } else if (progress > 0) {
+      bar.insertAdjacentText('afterbegin', `${progress}% `);
+    }
+
     cb.appendChild(bar);
+
+    // Overdue extension from bar end → today line
+    if (todayWk >= 0 && be < todayWk && task.status !== 'done') {
+      const barRight = (be + 1) * 70 - 4;
+      const todayPos = todayWk * 70 + 35;
+      if (todayPos > barRight) {
+        const ext = document.createElement('div');
+        ext.className = 'overdue-ext';
+        ext.style.left  = `${barRight}px`;
+        ext.style.width = `${todayPos - barRight}px`;
+        cb.appendChild(ext);
+      }
+    }
   } else {
     const lbl = document.createElement('div');
     lbl.className   = 'no-bar-label';
@@ -670,7 +872,7 @@ function buildTaskRow(task, teamColor, todayWk = -1) {
 }
 
 // ── Add / Edit Modal ───────────────────────────────────────────────────────
-function openModal(id = null) {
+function openModal(id = null, defaultStatus = null) {
   const form = document.getElementById('task-form');
   form.reset();
   document.getElementById('task-id').value = '';
@@ -695,13 +897,20 @@ function openModal(id = null) {
     document.getElementById('f-bar-end').value      = t.bar_end;
     document.getElementById('f-bar-color').value    = t.bar_color || '#4F46E5';
     document.getElementById('f-priority').value     = t.priority  || 'medium';
+    const prog = parseInt(t.progress) || 0;
+    document.getElementById('f-progress').value     = prog;
+    document.getElementById('f-progress-label').textContent = prog + '%';
+    document.getElementById('f-milestone').checked  = !!parseInt(t.is_milestone);
     rebuildOwnerDropdown(t.team, t.owner);
     setBarPickerRange(parseInt(t.bar_start), parseInt(t.bar_end));
   } else {
     document.getElementById('modal-title').textContent     = 'Add Initiative';
     document.getElementById('modal-sub').textContent       = 'Fill in the details. Leave timeline empty to add to Backlog.';
     document.getElementById('form-submit-btn').textContent = 'Save Initiative';
-    document.getElementById('f-status').value = 'unscheduled';
+    document.getElementById('f-status').value        = defaultStatus || 'unscheduled';
+    document.getElementById('f-progress').value      = 0;
+    document.getElementById('f-progress-label').textContent = '0%';
+    document.getElementById('f-milestone').checked   = false;
   }
   document.getElementById('modal').classList.add('open');
 }
@@ -726,6 +935,8 @@ async function saveTask(e) {
     bar_end:      parseInt(document.getElementById('f-bar-end').value),
     bar_color:    document.getElementById('f-bar-color').value,
     is_blocked:   document.getElementById('f-status').value === 'blocked' ? 1 : 0,
+    progress:     parseInt(document.getElementById('f-progress').value) || 0,
+    is_milestone: document.getElementById('f-milestone').checked ? 1 : 0,
   };
   const btn = document.getElementById('form-submit-btn');
   btn.disabled = true; btn.textContent = 'Saving…';
@@ -749,12 +960,23 @@ function closeDelete()          { document.getElementById('delete-modal').classL
 function closeDeleteOutside(e)  { if (e.target === document.getElementById('delete-modal')) closeDelete(); }
 async function confirmDelete() {
   if (!deleteTargetId) return;
+  const deleted = allTasks.find(t => t.id === deleteTargetId);
   await fetch(`${API}/api/tasks/${deleteTargetId}`, { method: 'DELETE' });
   closeDelete();
   await loadTasks();
   renderGantt();
   if (currentView === 'kanban')    renderKanban();
   if (currentView === 'dashboard') renderDashboard();
+  if (deleted) {
+    showToast(`"${deleted.initiative}" deleted`, async () => {
+      const { id: _id, created_at, updated_at, ...body } = deleted;
+      await fetch(`${API}/api/tasks`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      await loadTasks();
+      renderGantt();
+      if (currentView === 'kanban')    renderKanban();
+      if (currentView === 'dashboard') renderDashboard();
+    });
+  }
 }
 
 // ── Manage Modal ───────────────────────────────────────────────────────────
