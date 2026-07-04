@@ -6,7 +6,7 @@
 <title>Q3 2026 Roadmap</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=20260703270005">
+<link rel="stylesheet" href="style.css?v=20260704270001">
 </head>
 <body>
 
@@ -34,14 +34,54 @@
   </div>
 </header>
 
+<div class="app-body">
+
+<!-- ── Sidebar ── -->
+<nav class="sidebar" id="sidebar">
+  <div class="sidebar-header">
+    <div class="sidebar-brand" id="sidebar-brand">G</div>
+    <button class="sidebar-toggle-btn" id="sidebar-toggle-btn" onclick="toggleSidebar()" title="Toggle sidebar">
+      <span class="sidebar-chevron">‹</span>
+    </button>
+  </div>
+  <div class="sidebar-group">
+    <div class="sidebar-group-label">Views</div>
+    <button class="nav-item active" id="vbtn-gantt" onclick="switchView('gantt')" data-tooltip="Gantt">
+      <span class="nav-icon">📅</span>
+      <span class="nav-label">Gantt</span>
+    </button>
+    <button class="nav-item" id="vbtn-kanban" onclick="switchView('kanban')" data-tooltip="Kanban">
+      <span class="nav-icon">📋</span>
+      <span class="nav-label">Kanban</span>
+    </button>
+    <button class="nav-item" id="vbtn-dashboard" onclick="switchView('dashboard')" data-tooltip="Dashboard">
+      <span class="nav-icon">📊</span>
+      <span class="nav-label">Dashboard</span>
+    </button>
+  </div>
+  <div class="sidebar-divider"></div>
+  <div class="sidebar-group">
+    <div class="sidebar-group-label">Tools</div>
+    <button class="nav-item" onclick="openWorkloadModal()" data-tooltip="Workload">
+      <span class="nav-icon">👥</span>
+      <span class="nav-label">Workload</span>
+    </button>
+    <button class="nav-item" onclick="openManageModal('projects')" data-tooltip="Manage">
+      <span class="nav-icon">⚙️</span>
+      <span class="nav-label">Manage</span>
+    </button>
+    <button class="nav-item" onclick="openSettings()" data-tooltip="Settings">
+      <span class="nav-icon">🔧</span>
+      <span class="nav-label">Settings</span>
+    </button>
+  </div>
+</nav>
+
+<!-- ── Main Area ── -->
+<div class="main-area">
+
 <!-- ── Toolbar ── -->
 <div class="toolbar">
-  <div class="view-switcher">
-    <button class="view-btn active" id="vbtn-gantt"      onclick="switchView('gantt')">📅 Gantt</button>
-    <button class="view-btn"        id="vbtn-kanban"     onclick="switchView('kanban')">📋 Kanban</button>
-    <button class="view-btn"        id="vbtn-dashboard"  onclick="switchView('dashboard')">📊 Dashboard</button>
-  </div>
-  <div class="toolbar-sep"></div>
   <div class="search-wrap">
     <span class="search-icon">⌕</span>
     <input id="search" type="text" placeholder="Search..." oninput="renderActiveView()">
@@ -67,10 +107,6 @@
       <option value="unscheduled">Backlog</option>
     </select>
   </div>
-  <div class="toolbar-sep"></div>
-  <button class="btn-toolbar" onclick="openWorkloadModal()">📊 Workload</button>
-  <button class="btn-toolbar" onclick="openManageModal('projects')">⚙ Manage</button>
-  <button class="btn-toolbar" onclick="openSettings()">⚙ Settings</button>
   <div class="toolbar-stats" id="toolbar-stats"></div>
 </div>
 
@@ -106,6 +142,9 @@
 <div class="view-pane" id="view-dashboard" style="display:none">
   <div class="dashboard-body" id="dashboard-body"></div>
 </div>
+
+</div><!-- /.main-area -->
+</div><!-- /.app-body -->
 
 <!-- ── Add/Edit Initiative Modal ── -->
 <div class="modal-overlay" id="modal" onclick="closeModalOutside(event)">
@@ -341,6 +380,6 @@
   </div>
 </div>
 
-<script src="app.js?v=20260703270005"></script>
+<script src="app.js?v=20260704270001"></script>
 </body>
 </html>

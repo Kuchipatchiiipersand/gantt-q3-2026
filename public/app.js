@@ -139,12 +139,52 @@ function saveSettings() {
   closeSettings();
 }
 
+// ── Sidebar toggle ────────────────────────────────────────────────────────
+const SIDEBAR_KEY = 'gantt-sidebar-collapsed';
+
+function toggleSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  const isNowCollapsed = !sidebar.classList.contains('collapsed');
+  sidebar.classList.toggle('collapsed', isNowCollapsed);
+  localStorage.setItem(SIDEBAR_KEY, isNowCollapsed ? '1' : '0');
+}
+
+function initSidebar() {
+  if (localStorage.getItem(SIDEBAR_KEY) !== '0') {
+    document.getElementById('sidebar').classList.add('collapsed');
+  }
+
+  // Floating tooltip for collapsed-sidebar nav items
+  const tip = document.createElement('div');
+  tip.className = 'sidebar-tip';
+  tip.id = 'sidebar-tip';
+  document.body.appendChild(tip);
+
+  document.querySelectorAll('.nav-item[data-tooltip]').forEach(item => {
+    item.addEventListener('mouseenter', () => {
+      if (!document.getElementById('sidebar').classList.contains('collapsed')) return;
+      const rect = item.getBoundingClientRect();
+      tip.textContent = item.dataset.tooltip;
+      tip.style.top  = (rect.top + rect.height / 2) + 'px';
+      tip.style.left = (rect.right + 10) + 'px';
+      tip.classList.add('visible');
+    });
+    item.addEventListener('mouseleave', () => tip.classList.remove('visible'));
+  });
+
+  // Hide tooltip immediately when a nav item is clicked
+  document.getElementById('sidebar').addEventListener('click', () => {
+    tip.classList.remove('visible');
+  });
+}
+
 // ── Boot ──────────────────────────────────────────────────────────────────
 async function boot() {
   computeWeeks();
   buildMonthHeaders();
   buildWeekHeaders();
   applyConfigToDOM();
+  initSidebar();
   await Promise.all([loadTeams(), loadTasks(), loadDevelopers()]);
   populateProjectSelects();
   buildBarPicker();
