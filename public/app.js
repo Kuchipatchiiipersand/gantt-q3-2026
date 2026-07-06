@@ -272,6 +272,93 @@ function initSidebar() {
   });
 }
 
+// ── Jira Integration ──────────────────────────────────────────────────────
+let jiraDomain = '';
+
+async function loadJiraConfig() {
+  try {
+    const res  = await fetch('/api/settings');
+    const data = await res.json();
+    jiraDomain = data.jira_domain || '';
+    const configured = !!(data.jira_domain && data.jira_email && data.jira_token_set);
+    const btn = document.getElementById('btn-jira');
+    if (btn) btn.classList.toggle('jira-configured', configured);
+    const domainEl = document.getElementById('jira-domain');
+    if (domainEl) {
+      domainEl.value = data.jira_domain || '';
+      document.getElementById('jira-email').value = data.jira_email || '';
+      document.getElementById('jira-jql').value   = data.jira_jql   || '';
+    }
+  } catch(_) {}
+}
+
+function openJiraModal() {
+  document.getElementById('jira-modal').classList.add('open');
+  document.getElementById('jira-sync-status').style.display = 'none';
+  loadJiraConfig();
+}
+
+function closeJiraModal() {
+  document.getElementById('jira-modal').classList.remove('open');
+}
+
+function closeJiraOutside(e) {
+  if (e.target.id === 'jira-modal') closeJiraModal();
+}
+
+async function saveJiraConfig() {
+  const domain = document.getElementById('jira-domain').value.trim();
+  const email  = document.getElementById('jira-email').value.trim();
+  const token  = document.getElementById('jira-token').value.trim();
+  const jql    = document.getElementById('jira-jql').value.trim();
+  if (!domain || !email) { showToast('Domain and email are required.'); return; }
+  const body = { jira_domain: domain, jira_email: email, jira_jql: jql };
+  if (token) body.jira_token = token;
+  const res = await fetch('/api/settings', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+  });
+  if (res.ok) {
+    document.getElementById('jira-token').value = '';
+    showToast('Jira config saved.');
+    await loadJiraConfig();
+  } else {
+    showToast('Failed to save config.');
+  }
+}
+
+async function syncFromJira() {
+  const btn    = document.getElementById('jira-sync-btn');
+  const status = document.getElementById('jira-sync-status');
+  btn.disabled = true;
+  status.style.display = 'block';
+  status.className     = 'jira-sync-status jira-syncing';
+  status.textContent   = 'Connecting to Jira…';
+
+  try {
+    const res  = await fetch('/api/jira/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ startDate: cfg.startDate, endDate: cfg.endDate })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      status.className   = 'jira-sync-status jira-error';
+      status.textContent = `Error: ${data.error}`;
+    } else {
+      status.className   = 'jira-sync-status jira-success';
+      status.textContent = `✓ ${data.created} created, ${data.updated} updated (${data.total} total issues imported)`;
+      await Promise.all([loadTeams(), loadTasks()]);
+      populateProjectSelects();
+      renderActiveView();
+    }
+  } catch(e) {
+    status.className   = 'jira-sync-status jira-error';
+    status.textContent = `Network error: ${e.message}`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 // ── Boot ──────────────────────────────────────────────────────────────────
 async function boot() {
   computeWeeks();
@@ -285,6 +372,7 @@ async function boot() {
   buildBarPicker();
   buildMobileBarPicker();
   updateFilterBadges();
+  loadJiraConfig();
   // Default to Kanban on mobile — Gantt requires horizontal scroll and is hard to use
   if (window.innerWidth <= 768) {
     switchView('kanban');
@@ -539,6 +627,7 @@ function buildKanbanCard(task) {
     ${progressHtml}
     <div class="kcard-footer">
       <span class="kcard-project" style="border-left:3px solid ${color};padding-left:6px">${task.team}</span>
+      ${task.jira_key ? `<a class="jira-badge" href="${jiraDomain ? `https://${jiraDomain}/browse/${task.jira_key}` : '#'}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${task.jira_key}</a>` : ''}
       ${task.owner ? `<span class="kcard-owner"><span class="cell-assignee-avatar" style="background:${color};width:18px;height:18px;font-size:9px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;color:#fff;font-weight:700">${task.owner[0].toUpperCase()}</span> ${task.owner}</span>` : ''}
     </div>`;
 
@@ -1009,6 +1098,7 @@ function buildTaskRow(task, teamColor, todayWk = -1) {
     ${ragMeta ? `<span class="rag-dot ${ragMeta.dot}" title="${ragMeta.label}" style="flex-shrink:0"></span>` : ''}
     ${task.is_milestone ? '<span title="Milestone" style="font-size:11px;flex-shrink:0">◆</span>' : ''}
     <span class="cell-init-text" title="${safeTitle}">${task.initiative}</span>
+    ${task.jira_key ? `<a class="jira-badge" href="${jiraDomain ? `https://${jiraDomain}/browse/${task.jira_key}` : '#'}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="flex-shrink:0">${task.jira_key}</a>` : ''}
     <div class="row-actions">
       <button class="btn-edit" title="Edit" onclick="openModal(${task.id})">✎</button>
       <button class="btn-del"  title="Delete" onclick="openDelete(${task.id}, '${safeName}')">✕</button>

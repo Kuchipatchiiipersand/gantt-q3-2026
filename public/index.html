@@ -10,7 +10,7 @@
 <title>Q3 2026 Roadmap</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=20260704270006">
+<link rel="stylesheet" href="style.css?v=20260706120000">
 </head>
 <body>
 
@@ -120,6 +120,10 @@
     </button>
   </div>
   <div class="toolbar-stats" id="toolbar-stats"></div>
+  <button class="btn-jira" id="btn-jira" onclick="openJiraModal()" title="Sync issues from Jira">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M11.571 11.429 6 5.857 7.429 4.43l4.142 4.143 4.143-4.143L17.143 5.857l-5.572 5.572zm0 1.142L5.999 18l1.43 1.429 4.142-4.143 4.143 4.143 1.429-1.429-5.572-5.429z"/></svg>
+    Jira
+  </button>
   <div class="shortcuts-hint" id="shortcuts-hint">
     <span><kbd>N</kbd> New</span>
     <span><kbd>/</kbd> Search</span>
@@ -434,6 +438,53 @@
   </div>
 </div>
 
+<!-- ── Jira Sync Modal ── -->
+<div class="modal-overlay" id="jira-modal" onclick="closeJiraOutside(event)">
+  <div class="modal" style="width:min(520px,100%)">
+    <div class="modal-header">
+      <div>
+        <h2>Jira Sync</h2>
+        <p>Import issues from your Jira workspace into the roadmap.</p>
+      </div>
+      <button class="modal-close" onclick="closeJiraModal()">✕</button>
+    </div>
+    <div class="form-section">
+      <div class="form-section-title">Connection</div>
+      <div class="form-group">
+        <label>Jira Domain</label>
+        <input type="text" id="jira-domain" placeholder="yourcompany.atlassian.net">
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" id="jira-email" placeholder="you@company.com">
+        </div>
+        <div class="form-group">
+          <label>API Token <span class="label-hint">— <a href="https://id.atlassian.com/manage-profile/security/api-tokens" target="_blank" style="color:var(--accent)">generate here</a></span></label>
+          <input type="password" id="jira-token" placeholder="Leave blank to keep saved token">
+        </div>
+      </div>
+    </div>
+    <div class="form-section">
+      <div class="form-section-title">Import Filter</div>
+      <div class="form-group">
+        <label>JQL Query <span class="label-hint">— filters which issues are imported</span></label>
+        <input type="text" id="jira-jql" placeholder='project in ("MYPROJ") ORDER BY updated DESC'>
+      </div>
+      <p style="font-size:11px;color:var(--text-3);margin-top:2px">Leave blank to import all accessible issues. Existing tasks created from Jira will be updated; your manually-created tasks are never touched.</p>
+    </div>
+    <div class="jira-sync-status" id="jira-sync-status" style="display:none"></div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeJiraModal()">Cancel</button>
+      <button class="btn-secondary" onclick="saveJiraConfig()">Save Config</button>
+      <button class="btn-primary" id="jira-sync-btn" onclick="syncFromJira()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style="margin-right:4px"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>
+        Sync Now
+      </button>
+    </div>
+  </div>
+</div>
+
 <!-- ── Toast ── -->
 <div class="toast" id="toast">
   <span class="toast-msg" id="toast-msg"></span>
@@ -441,7 +492,7 @@
   <button class="toast-dismiss" onclick="hideToast()">✕</button>
 </div>
 
-<script src="app.js?v=20260704270006"></script>
+<script src="app.js?v=20260706120000"></script>
 
 <!-- ── Mobile Bottom Nav ── -->
 <nav class="mobile-bottom-nav" id="mobile-nav">

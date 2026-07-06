@@ -84,11 +84,17 @@ async function initSchema() {
         bar_color     TEXT DEFAULT '#4F46E5',
         is_blocked    INTEGER DEFAULT 0,
         sort_order    INTEGER DEFAULT 0,
+        progress      INTEGER DEFAULT 0,
+        is_milestone  INTEGER DEFAULT 0,
         created_at    TIMESTAMPTZ DEFAULT NOW(),
         updated_at    TIMESTAMPTZ DEFAULT NOW()
       );
     `);
-    await db.run("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS priority TEXT DEFAULT 'medium'").catch(() => {});
+    await db.run("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS priority     TEXT    DEFAULT 'medium'").catch(() => {});
+    await db.run("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS progress     INTEGER DEFAULT 0").catch(() => {});
+    await db.run("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS is_milestone INTEGER DEFAULT 0").catch(() => {});
+    await db.run("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS jira_key     TEXT").catch(() => {});
+    await db.query("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)").catch(() => {});
   } else {
     db.exec(`
       CREATE TABLE IF NOT EXISTS teams (
@@ -119,11 +125,17 @@ async function initSchema() {
         bar_color     TEXT DEFAULT '#4F46E5',
         is_blocked    INTEGER DEFAULT 0,
         sort_order    INTEGER DEFAULT 0,
+        progress      INTEGER DEFAULT 0,
+        is_milestone  INTEGER DEFAULT 0,
         created_at    TEXT DEFAULT (datetime('now')),
         updated_at    TEXT DEFAULT (datetime('now'))
       );
     `);
-    try { db.exec("ALTER TABLE tasks ADD COLUMN priority TEXT DEFAULT 'medium'"); } catch(_) {}
+    try { db.exec("ALTER TABLE tasks ADD COLUMN priority     TEXT    DEFAULT 'medium'"); } catch(_) {}
+    try { db.exec("ALTER TABLE tasks ADD COLUMN progress     INTEGER DEFAULT 0");        } catch(_) {}
+    try { db.exec("ALTER TABLE tasks ADD COLUMN is_milestone INTEGER DEFAULT 0");        } catch(_) {}
+    try { db.exec("ALTER TABLE tasks ADD COLUMN jira_key     TEXT");                     } catch(_) {}
+    try { db.exec("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)"); } catch(_) {}
   }
 }
 
@@ -323,14 +335,14 @@ app.post('/api/tasks', async (req, res) => {
   try {
     const { team, owner='', initiative, outcome='', target='', metric='',
             dependencies='', status='active', priority='medium', bar_start=-1, bar_end=-1,
-            bar_color='#4F46E5', is_blocked=0 } = req.body;
+            bar_color='#4F46E5', is_blocked=0, progress=0, is_milestone=0 } = req.body;
     if (!team || !initiative) return res.status(400).json({ error: 'team and initiative required' });
     const max = await db.get('SELECT MAX(sort_order) AS m FROM tasks WHERE team=$1', [team]);
     const sort_order = (parseInt(max?.m) || 0) + 1;
     const row = await db.get(
-      `INSERT INTO tasks (team,owner,initiative,outcome,target,metric,dependencies,status,priority,bar_start,bar_end,bar_color,is_blocked,sort_order)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
-      [team,owner,initiative,outcome,target,metric,dependencies,status,priority,bar_start,bar_end,bar_color,is_blocked?1:0,sort_order]
+      `INSERT INTO tasks (team,owner,initiative,outcome,target,metric,dependencies,status,priority,bar_start,bar_end,bar_color,is_blocked,sort_order,progress,is_milestone)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING *`,
+      [team,owner,initiative,outcome,target,metric,dependencies,status,priority,bar_start,bar_end,bar_color,is_blocked?1:0,sort_order,parseInt(progress)||0,is_milestone?1:0]
     );
     res.json(row);
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -339,13 +351,15 @@ app.post('/api/tasks', async (req, res) => {
 app.put('/api/tasks/:id', async (req, res) => {
   try {
     const { team, initiative, owner='', outcome='', target='', metric='', dependencies='',
-            status='active', priority='medium', bar_start=-1, bar_end=-1, bar_color='#4F46E5', is_blocked=0 } = req.body;
+            status='active', priority='medium', bar_start=-1, bar_end=-1, bar_color='#4F46E5',
+            is_blocked=0, progress=0, is_milestone=0 } = req.body;
     const now = process.env.DATABASE_URL ? 'NOW()' : "datetime('now')";
     const row = await db.get(
       `UPDATE tasks SET team=$1,initiative=$2,owner=$3,outcome=$4,target=$5,metric=$6,dependencies=$7,
-       status=$8,priority=$9,bar_start=$10,bar_end=$11,bar_color=$12,is_blocked=$13,updated_at=${now}
-       WHERE id=$14 RETURNING *`,
-      [team,initiative,owner,outcome,target,metric,dependencies,status,priority,bar_start,bar_end,bar_color,is_blocked?1:0,req.params.id]
+       status=$8,priority=$9,bar_start=$10,bar_end=$11,bar_color=$12,is_blocked=$13,
+       progress=$14,is_milestone=$15,updated_at=${now}
+       WHERE id=$16 RETURNING *`,
+      [team,initiative,owner,outcome,target,metric,dependencies,status,priority,bar_start,bar_end,bar_color,is_blocked?1:0,parseInt(progress)||0,is_milestone?1:0,req.params.id]
     );
     res.json(row);
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -356,6 +370,179 @@ app.delete('/api/tasks/:id', async (req, res) => {
     await db.run('DELETE FROM tasks WHERE id=$1', [req.params.id]);
     res.json({ success: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── API: Settings ─────────────────────────────────────────────────────────
+app.get('/api/settings', async (req, res) => {
+  try {
+    const rows = await db.all('SELECT key, value FROM settings');
+    const obj = {};
+    for (const r of rows) obj[r.key] = r.value;
+    const out = { ...obj };
+    delete out.jira_token;
+    out.jira_token_set = !!obj.jira_token;
+    res.json(out);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/settings', async (req, res) => {
+  try {
+    for (const [key, value] of Object.entries(req.body || {})) {
+      await db.run(
+        'INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT(key) DO UPDATE SET value=$2',
+        [key, String(value)]
+      );
+    }
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── API: Jira Sync ─────────────────────────────────────────────────────────
+function mapJiraStatus(s) {
+  s = (s || '').toLowerCase();
+  if (['done','closed','resolved','cancelled','complete','completed'].some(v => s.includes(v))) return 'done';
+  if (['blocked','on hold','impediment','waiting'].some(v => s.includes(v))) return 'blocked';
+  if (['in progress','in development','in review','code review','testing','in test'].some(v => s.includes(v))) return 'active';
+  if (['backlog','future','icebox'].some(v => s.includes(v))) return 'unscheduled';
+  return 'pending';
+}
+
+function mapJiraPriority(p) {
+  p = (p || '').toLowerCase();
+  if (['highest','critical'].includes(p)) return 'critical';
+  if (p === 'high') return 'high';
+  if (['low','lowest','minor','trivial'].includes(p)) return 'low';
+  return 'medium';
+}
+
+function dateToWeekIdx(dateStr, startDate, numWeeks) {
+  if (!dateStr) return -1;
+  const d = new Date(dateStr + 'T00:00:00');
+  const s = new Date(startDate + 'T00:00:00');
+  const diff = d - s;
+  if (diff < 0) return 0;
+  const wi = Math.floor(diff / (7 * 24 * 3600 * 1000));
+  return Math.min(wi, numWeeks - 1);
+}
+
+app.post('/api/jira/sync', async (req, res) => {
+  try {
+    const { startDate, endDate } = req.body || {};
+
+    const rows = await db.all('SELECT key, value FROM settings');
+    const cfg = {};
+    for (const r of rows) cfg[r.key] = r.value;
+    const { jira_domain, jira_email, jira_token, jira_jql } = cfg;
+
+    if (!jira_domain || !jira_email || !jira_token) {
+      return res.status(400).json({ error: 'Jira not configured. Please set domain, email, and API token.' });
+    }
+
+    const auth = Buffer.from(`${jira_email}:${jira_token}`).toString('base64');
+    const jql  = jira_jql || 'order by updated DESC';
+    const effectiveStart = startDate || '2026-07-01';
+    const numWeeks = startDate && endDate
+      ? Math.ceil((new Date(endDate + 'T00:00:00') - new Date(startDate + 'T00:00:00')) / (7 * 24 * 3600 * 1000)) + 1
+      : 13;
+
+    // Paginate through all matching Jira issues
+    const allIssues = [];
+    let startAt = 0;
+    while (true) {
+      const url = `https://${jira_domain}/rest/api/3/search` +
+        `?jql=${encodeURIComponent(jql)}` +
+        `&fields=summary,assignee,status,priority,project,duedate,customfield_10015,issuetype,description` +
+        `&maxResults=100&startAt=${startAt}`;
+      const jiraRes = await fetch(url, {
+        headers: { 'Authorization': `Basic ${auth}`, 'Accept': 'application/json' }
+      });
+      if (!jiraRes.ok) {
+        const txt = await jiraRes.text();
+        return res.status(502).json({ error: `Jira API ${jiraRes.status}: ${txt.slice(0, 300)}` });
+      }
+      const data = await jiraRes.json();
+      allIssues.push(...(data.issues || []));
+      if (allIssues.length >= (data.total || 0) || (data.issues || []).length === 0 || startAt > 400) break;
+      startAt += 100;
+    }
+
+    // Team lookup + auto-create
+    const teams = await db.all('SELECT * FROM teams');
+    const AUTO_COLORS = ['#6366F1','#8B5CF6','#EC4899','#F59E0B','#10B981','#0EA5E9'];
+    let colorIdx = teams.length % AUTO_COLORS.length;
+
+    async function getOrCreateTeam(projectName, projectKey) {
+      let team = teams.find(t => t.name.toLowerCase() === projectName.toLowerCase());
+      if (!team) team = teams.find(t =>
+        projectName.toLowerCase().includes(t.name.toLowerCase()) ||
+        t.name.toLowerCase().includes(projectName.toLowerCase())
+      );
+      if (team) return team;
+      const color = AUTO_COLORS[colorIdx++ % AUTO_COLORS.length];
+      try {
+        const created = await db.get(
+          'INSERT INTO teams (name, owner, color) VALUES ($1, $2, $3) RETURNING *',
+          [projectName, projectKey || '', color]
+        );
+        if (created) { teams.push(created); return created; }
+      } catch (_) {}
+      const existing = await db.get('SELECT * FROM teams WHERE name=$1', [projectName]);
+      if (existing && !teams.find(t => t.id === existing.id)) teams.push(existing);
+      return existing || { name: projectName, color };
+    }
+
+    let created = 0, updated = 0;
+
+    for (const issue of allIssues) {
+      const f        = issue.fields;
+      const jiraKey  = issue.key;
+      const status   = mapJiraStatus(f.status?.name);
+      const priority = mapJiraPriority(f.priority?.name);
+      const owner    = f.assignee?.displayName || '';
+      const team     = await getOrCreateTeam(f.project?.name || 'Jira', f.project?.key || '');
+      const bar_end  = dateToWeekIdx(f.duedate, effectiveStart, numWeeks);
+      const bar_start= dateToWeekIdx(f.customfield_10015, effectiveStart, numWeeks);
+      const progress = Math.round(f.progress?.percent || 0);
+      const is_blocked = status === 'blocked' ? 1 : 0;
+
+      let outcome = '';
+      if (f.description?.content) {
+        const para = f.description.content.find(b => b.type === 'paragraph');
+        if (para?.content) {
+          outcome = para.content.filter(c => c.type === 'text').map(c => c.text).join('').slice(0, 200);
+        }
+      }
+
+      const existing = await db.get('SELECT id FROM tasks WHERE jira_key=$1', [jiraKey]);
+      const now = process.env.DATABASE_URL ? 'NOW()' : "datetime('now')";
+
+      if (existing) {
+        await db.run(
+          `UPDATE tasks SET initiative=$1, owner=$2, team=$3, status=$4, priority=$5,
+           bar_start=$6, bar_end=$7, progress=$8, is_blocked=$9, outcome=$10, updated_at=${now}
+           WHERE jira_key=$11`,
+          [f.summary, owner, team.name, status, priority, bar_start, bar_end, progress, is_blocked, outcome, jiraKey]
+        );
+        updated++;
+      } else {
+        const max = await db.get('SELECT MAX(sort_order) AS m FROM tasks WHERE team=$1', [team.name]);
+        const sort_order = (parseInt(max?.m) || 0) + 1;
+        await db.run(
+          `INSERT INTO tasks (jira_key, team, owner, initiative, outcome, status, priority,
+           bar_start, bar_end, bar_color, is_blocked, sort_order, progress)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+          [jiraKey, team.name, owner, f.summary, outcome, status, priority,
+           bar_start, bar_end, team.color, is_blocked, sort_order, progress]
+        );
+        created++;
+      }
+    }
+
+    res.json({ created, updated, total: allIssues.length });
+  } catch(e) {
+    console.error('Jira sync error:', e);
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // ── Start ──────────────────────────────────────────────────────────────────
