@@ -1391,6 +1391,25 @@ header h1 { font-size: 15px; font-weight: 700; color: #fff; letter-spacing: -.2p
 }
 
 /* ── Overdue extension ── */
+.target-flag {
+  position: absolute;
+  top: 3px;
+  width: 10px; height: 10px;
+  transform: rotate(45deg);
+  background: #F59E0B;
+  border-radius: 2px;
+  z-index: 5;
+  box-shadow: 0 1px 3px rgba(0,0,0,.25);
+  cursor: default;
+}
+.target-flag::after {
+  content: '';
+  position: absolute; inset: 0; border-radius: inherit;
+  background: linear-gradient(135deg, rgba(255,255,255,.35), transparent);
+}
+.target-flag-late { background: #EF4444; }
+.target-flag-done { background: #22C55E; }
+
 .overdue-ext {
   position: absolute; height: 6px;
   top: 50%; transform: translateY(-50%);

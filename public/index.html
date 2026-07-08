@@ -10,7 +10,7 @@
 <title>Q3 2026 Roadmap</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=20260708090000">
+<link rel="stylesheet" href="style.css?v=20260708150000">
 </head>
 <body>
 
@@ -294,6 +294,15 @@
         <input type="hidden" id="f-bar-color" value="#4F46E5">
       </div>
 
+      <div class="form-section">
+        <div class="form-section-title">Target Go Live <span class="label-hint">— shown as a flag ◆ on the Gantt chart</span></div>
+        <div class="form-group">
+          <select id="f-target-date">
+            <option value="-1">— No target date —</option>
+          </select>
+        </div>
+      </div>
+
       <div class="modal-footer">
         <button type="button" class="btn-secondary" onclick="closeModal()">Cancel</button>
         <button type="submit" class="btn-primary" id="form-submit-btn">Save Initiative</button>
@@ -490,7 +499,7 @@
   <button class="toast-dismiss" onclick="hideToast()">✕</button>
 </div>
 
-<script src="app.js?v=20260708090000"></script>
+<script src="app.js?v=20260708150000"></script>
 
 <!-- ── Mobile Bottom Nav ── -->
 <nav class="mobile-bottom-nav" id="mobile-nav">

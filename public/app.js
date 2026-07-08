@@ -1252,6 +1252,17 @@ function buildTaskRow(task, teamColor, todayWk = -1) {
     cb.appendChild(lbl);
   }
 
+  // Target go live flag
+  const td = parseInt(task.target_date);
+  if (td >= 0 && td < NW) {
+    const flag = document.createElement('div');
+    const isLate = todayWk >= 0 && td < todayWk && task.status !== 'done';
+    flag.className = 'target-flag' + (isLate ? ' target-flag-late' : task.status === 'done' ? ' target-flag-done' : '');
+    flag.style.left = `${td * 70 + 30}px`;
+    flag.title = `Target go live: ${WEEKS[td]}${isLate ? ' ⚠ overdue' : ''}`;
+    cb.appendChild(flag);
+  }
+
   if (todayWk >= 0) {
     const tl = document.createElement('div');
     tl.className = 'today-line';
@@ -1296,6 +1307,8 @@ function openModal(id = null, defaultStatus = null) {
     rebuildOwnerDropdown(t.team, t.owner);
     setBarPickerRange(parseInt(t.bar_start), parseInt(t.bar_end));
     syncMobilePicker(parseInt(t.bar_start), parseInt(t.bar_end));
+    const tdSel = document.getElementById('f-target-date');
+    if (tdSel) tdSel.value = parseInt(t.target_date) >= 0 ? parseInt(t.target_date) : -1;
   } else {
     document.getElementById('modal-title').textContent     = 'Add Initiative';
     document.getElementById('modal-sub').textContent       = 'Fill in the details. Leave timeline empty to add to Backlog.';
@@ -1330,6 +1343,7 @@ async function saveTask(e) {
     is_blocked:   document.getElementById('f-status').value === 'blocked' ? 1 : 0,
     progress:     parseInt(document.getElementById('f-progress').value) || 0,
     is_milestone: document.getElementById('f-milestone').checked ? 1 : 0,
+    target_date:  parseInt(document.getElementById('f-target-date').value) ?? -1,
   };
   const btn = document.getElementById('form-submit-btn');
   btn.disabled = true; btn.textContent = 'Saving…';
@@ -1716,6 +1730,9 @@ function buildMobileBarPicker() {
   const opts  = WEEKS.map((w, i) => `<option value="${i}">W${i + 1} · ${w}</option>`).join('');
   startSel.innerHTML = base + opts;
   endSel.innerHTML   = base + opts;
+  // Also populate target date select
+  const tdSel = document.getElementById('f-target-date');
+  if (tdSel) tdSel.innerHTML = '<option value="-1">— No target date —</option>' + opts;
 }
 
 function updateMobilePicker() {
@@ -1838,6 +1855,8 @@ function resetBarPicker() {
   syncMobilePicker(-1, -1);
   const hint = document.getElementById('mobile-bp-hint');
   if (hint) hint.textContent = 'No range selected — will go to Backlog';
+  const tdSel = document.getElementById('f-target-date');
+  if (tdSel) tdSel.value = -1;
 }
 
 boot();
