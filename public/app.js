@@ -1257,8 +1257,9 @@ function buildTaskRow(task, teamColor, todayWk = -1) {
   if (td >= 0 && td < NW) {
     const flag = document.createElement('div');
     const isLate = todayWk >= 0 && td < todayWk && task.status !== 'done';
-    flag.className = 'target-flag' + (isLate ? ' target-flag-late' : task.status === 'done' ? ' target-flag-done' : '');
-    flag.style.left = `${td * 70 + 30}px`;
+    flag.className = 'target-flag';
+    flag.textContent = '🚩';
+    flag.style.left = `${td * 70 + 28}px`;
     flag.title = `Target go live: ${WEEKS[td]}${isLate ? ' ⚠ overdue' : ''}`;
     cb.appendChild(flag);
   }
@@ -1343,7 +1344,7 @@ async function saveTask(e) {
     is_blocked:   document.getElementById('f-status').value === 'blocked' ? 1 : 0,
     progress:     parseInt(document.getElementById('f-progress').value) || 0,
     is_milestone: document.getElementById('f-milestone').checked ? 1 : 0,
-    target_date:  parseInt(document.getElementById('f-target-date').value) ?? -1,
+    target_date:  parseInt(document.getElementById('f-target-date')?.value ?? '-1'),
   };
   const btn = document.getElementById('form-submit-btn');
   btn.disabled = true; btn.textContent = 'Saving…';

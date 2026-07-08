@@ -348,7 +348,7 @@ app.post('/api/tasks', async (req, res) => {
     const row = await db.get(
       `INSERT INTO tasks (team,owner,initiative,outcome,target,metric,dependencies,status,priority,bar_start,bar_end,bar_color,is_blocked,sort_order,progress,is_milestone,target_date)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING *`,
-      [team,owner,initiative,outcome,target,metric,dependencies,status,priority,bar_start,bar_end,bar_color,is_blocked?1:0,sort_order,parseInt(progress)||0,is_milestone?1:0,parseInt(target_date)??-1]
+      [team,owner,initiative,outcome,target,metric,dependencies,status,priority,bar_start,bar_end,bar_color,is_blocked?1:0,sort_order,parseInt(progress)||0,is_milestone?1:0,isNaN(parseInt(target_date)) ? -1 : parseInt(target_date)]
     );
     res.json(row);
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -365,7 +365,7 @@ app.put('/api/tasks/:id', async (req, res) => {
        status=$8,priority=$9,bar_start=$10,bar_end=$11,bar_color=$12,is_blocked=$13,
        progress=$14,is_milestone=$15,target_date=$16,updated_at=${now}
        WHERE id=$17 RETURNING *`,
-      [team,initiative,owner,outcome,target,metric,dependencies,status,priority,bar_start,bar_end,bar_color,is_blocked?1:0,parseInt(progress)||0,is_milestone?1:0,parseInt(target_date)??-1,req.params.id]
+      [team,initiative,owner,outcome,target,metric,dependencies,status,priority,bar_start,bar_end,bar_color,is_blocked?1:0,parseInt(progress)||0,is_milestone?1:0,isNaN(parseInt(target_date)) ? -1 : parseInt(target_date),req.params.id]
     );
     res.json(row);
   } catch(e) { res.status(500).json({ error: e.message }); }
