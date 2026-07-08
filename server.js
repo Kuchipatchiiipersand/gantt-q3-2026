@@ -223,6 +223,10 @@ async function seedDevelopers() {
   console.log(`Seeded ${devs.length} developers.`);
 }
 
+app.get('/api/health', (req, res) => {
+  res.json({ db: process.env.DATABASE_URL ? 'postgres' : 'sqlite' });
+});
+
 // No-cache for all API responses so reloads after mutations always see fresh data
 app.use('/api', (req, res, next) => { res.setHeader('Cache-Control', 'no-store'); next(); });
 
