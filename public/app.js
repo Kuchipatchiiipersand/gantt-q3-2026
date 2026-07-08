@@ -78,6 +78,7 @@ const STATUS_META = {
   active:      { label: 'Active',      cls: 's-active' },
   done:        { label: 'Done',        cls: 's-done' },
   blocked:     { label: 'Blocked',     cls: 's-blocked' },
+  at_risk:     { label: 'At Risk',     cls: 's-at-risk' },
   pending:     { label: 'Pending',     cls: 's-pending' },
   unscheduled: { label: 'Backlog',     cls: 's-unscheduled' },
 };
@@ -90,7 +91,7 @@ const PRIORITY_META = {
 
 const KANBAN_COLS = [
   { id: 'todo',   statuses: ['unscheduled','pending'], dropStatus: 'pending',  label: 'Backlog',      color: '#94A3B8' },
-  { id: 'active', statuses: ['active','blocked'],      dropStatus: 'active',   label: 'In Progress',  color: '#3B82F6' },
+  { id: 'active', statuses: ['active','blocked','at_risk'], dropStatus: 'active', label: 'In Progress', color: '#3B82F6' },
   { id: 'done',   statuses: ['done'],                  dropStatus: 'done',     label: 'Done',         color: '#22C55E' },
 ];
 
@@ -1003,6 +1004,7 @@ function renderGantt() {
   const scheduled = filtered.filter(t => parseInt(t.bar_start) >= 0 && parseInt(t.bar_end) >= 0);
   const backlog   = filtered.filter(t => parseInt(t.bar_start) < 0 || parseInt(t.bar_end) < 0);
 
+
   // Group scheduled by project → developer
   const byTeam = {};
   allTeams.forEach(t => { byTeam[t.name] = {}; });
@@ -1123,7 +1125,7 @@ function buildTaskRow(task, teamColor, todayWk = -1) {
   const ca = document.createElement('div');
   ca.className = 'cell-assignee';
   if (task.owner) {
-    ca.innerHTML = `<span class="cell-assignee-avatar" style="background:${teamColor}">${task.owner[0].toUpperCase()}</span>${task.owner}`;
+    ca.innerHTML = `<span class="cell-assignee-avatar" style="background:${teamColor}">${task.owner[0].toUpperCase()}</span>${task.owner}`; // ponytail: owner cell kept simple, at-risk shown on bar
   } else {
     ca.textContent = '—';
   }
@@ -1211,7 +1213,14 @@ function buildTaskRow(task, teamColor, todayWk = -1) {
     bar.style.left       = `${bs * 70 + 4}px`;
     bar.style.width      = `${(be - bs + 1) * 70 - 8}px`;
     bar.style.background = barColor;
-    bar.title            = [task.initiative, task.target, task.dependencies].filter(Boolean).join('\n');
+    if (task.status === 'at_risk') {
+      bar.classList.add('bar-collision');
+      const risk = document.createElement('span');
+      risk.className = 'at-risk-label';
+      risk.textContent = '⚠ At Risk';
+      bar.appendChild(risk);
+    }
+    bar.title = [task.initiative, task.target, task.dependencies].filter(Boolean).join('\n');
     bar.onclick          = () => openModal(task.id);
 
     // Progress strip inside bar

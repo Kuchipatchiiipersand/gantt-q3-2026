@@ -441,6 +441,8 @@ header h1 { font-size: 15px; font-weight: 700; color: #fff; letter-spacing: -.2p
 .s-done .chip-dot        { background: #22C55E; }
 .s-blocked     { background: #FFF1F2; color: #BE123C; border-color: #FECDD3; }
 .s-blocked .chip-dot     { background: #F43F5E; }
+.s-at-risk     { background: #FFFBEB; color: #92400E; border-color: #FCD34D; }
+.s-at-risk .chip-dot     { background: #F59E0B; }
 .s-pending     { background: #FFFBEB; color: #B45309; border-color: #FDE68A; }
 .s-pending .chip-dot     { background: #F59E0B; }
 .s-unscheduled { background: #F8FAFC; color: #64748B; border-color: #E2E8F0; }
@@ -1391,6 +1393,17 @@ header h1 { font-size: 15px; font-weight: 700; color: #fff; letter-spacing: -.2p
 }
 
 /* ── Overdue extension ── */
+.bar-collision {
+  box-shadow: 0 0 0 2px #F59E0B, 0 2px 8px rgba(245,158,11,.35) !important;
+}
+.at-risk-label {
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  background: rgba(0,0,0,.25); border-radius: 3px;
+  padding: 1px 5px; font-size: 9px; font-weight: 700;
+  color: #fff; white-space: nowrap; pointer-events: none;
+  letter-spacing: .2px;
+}
+
 .target-flag {
   position: absolute;
   top: 2px;

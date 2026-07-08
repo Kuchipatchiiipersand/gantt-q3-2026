@@ -10,7 +10,7 @@
 <title>Q3 2026 Roadmap</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=20260708160000">
+<link rel="stylesheet" href="style.css?v=20260708180000">
 </head>
 <body>
 
@@ -107,6 +107,7 @@
       <select id="filter-status" onchange="renderActiveView();updateFilterBadges()">
         <option value="">All Statuses</option>
         <option value="active">Active</option>
+        <option value="at_risk">At Risk</option>
         <option value="done">Done</option>
         <option value="blocked">Blocked</option>
         <option value="pending">Pending</option>
@@ -214,6 +215,7 @@
           <div class="form-group">
             <label>Status</label>
             <select id="f-status">
+              <option value="at_risk">At Risk</option>
               <option value="active">Active</option>
               <option value="done">Done</option>
               <option value="blocked">Blocked</option>
@@ -499,7 +501,7 @@
   <button class="toast-dismiss" onclick="hideToast()">✕</button>
 </div>
 
-<script src="app.js?v=20260708160000"></script>
+<script src="app.js?v=20260708180000"></script>
 
 <!-- ── Mobile Bottom Nav ── -->
 <nav class="mobile-bottom-nav" id="mobile-nav">
