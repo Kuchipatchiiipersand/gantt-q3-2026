@@ -183,18 +183,70 @@ function hideToast() {
   document.getElementById('toast').classList.remove('visible');
 }
 
-// ── Filters ───────────────────────────────────────────────────────────────
+// ── Multi-select filters ──────────────────────────────────────────────────
+let filterProjects = [];
+let filterDevs     = [];
+
+function toggleMultiDropdown(type) {
+  const wrap = document.getElementById(`ms-${type}-wrap`);
+  const opening = !wrap.classList.contains('ms-open');
+  document.querySelectorAll('.multi-select-wrap').forEach(w => w.classList.remove('ms-open'));
+  if (opening) wrap.classList.add('ms-open');
+}
+
+function toggleMultiFilter(type, value) {
+  const arr = type === 'project' ? filterProjects : filterDevs;
+  const idx = arr.indexOf(value);
+  if (idx === -1) arr.push(value); else arr.splice(idx, 1);
+  updateMultiBtn(type);
+  updateFilterBadges();
+  renderActiveView();
+}
+
+function updateMultiBtn(type) {
+  const arr  = type === 'project' ? filterProjects : filterDevs;
+  const ph   = type === 'project' ? 'All Projects' : 'All Developers';
+  const btn  = document.getElementById(`ms-${type}-btn`);
+  if (!btn) return;
+  btn.textContent = arr.length === 0 ? `${ph} ▾` : arr.length === 1 ? `${arr[0]} ▾` : `${arr.length} selected ▾`;
+  btn.classList.toggle('ms-active', arr.length > 0);
+}
+
+function rebuildProjectMultiSelect() {
+  const drop = document.getElementById('ms-project-drop');
+  if (!drop) return;
+  drop.innerHTML = allTeams.map(t => `
+    <label class="ms-item">
+      <input type="checkbox" onchange="toggleMultiFilter('project','${t.name.replace(/'/g,"\\'")}')" ${filterProjects.includes(t.name) ? 'checked' : ''}>
+      <span class="ms-dot" style="background:${t.color}"></span>${t.name}
+    </label>`).join('');
+}
+
+function rebuildDevMultiSelect() {
+  const drop = document.getElementById('ms-dev-drop');
+  if (!drop) return;
+  const names = [...new Set(allDevelopers.map(d => d.name))].sort();
+  drop.innerHTML = names.map(n => `
+    <label class="ms-item">
+      <input type="checkbox" onchange="toggleMultiFilter('dev','${n.replace(/'/g,"\\'")}')" ${filterDevs.includes(n) ? 'checked' : ''}>
+      ${n}
+    </label>`).join('');
+}
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('.multi-select-wrap')) {
+    document.querySelectorAll('.multi-select-wrap').forEach(w => w.classList.remove('ms-open'));
+  }
+});
+
 function updateFilterBadges() {
-  const proj = document.getElementById('filter-project').value;
-  const dev  = document.getElementById('filter-dev').value;
   const stat = document.getElementById('filter-status').value;
-  document.getElementById('filter-project').closest('.select-wrap').classList.toggle('filter-active', !!proj);
-  document.getElementById('filter-dev').closest('.select-wrap').classList.toggle('filter-active', !!dev);
+  document.getElementById('ms-project-wrap')?.classList.toggle('filter-active', filterProjects.length > 0);
+  document.getElementById('ms-dev-wrap')?.classList.toggle('filter-active', filterDevs.length > 0);
   document.getElementById('filter-status').closest('.select-wrap').classList.toggle('filter-active', !!stat);
+  const activeCount = (filterProjects.length > 0 ? 1 : 0) + (filterDevs.length > 0 ? 1 : 0) + (stat ? 1 : 0);
   const clearBtn = document.getElementById('btn-clear-filters');
-  if (clearBtn) clearBtn.style.display = (proj || dev || stat) ? 'flex' : 'none';
-  // Mobile filter button badge
-  const activeCount = [proj, dev, stat].filter(Boolean).length;
+  if (clearBtn) clearBtn.style.display = activeCount > 0 ? 'flex' : 'none';
   const mBtn = document.getElementById('mobile-filter-btn');
   if (mBtn) {
     mBtn.classList.toggle('filter-active', activeCount > 0);
@@ -204,10 +256,11 @@ function updateFilterBadges() {
 }
 
 function clearFilters() {
-  document.getElementById('filter-project').value = '';
-  document.getElementById('filter-dev').value     = '';
-  document.getElementById('filter-status').value  = '';
-  document.getElementById('search').value         = '';
+  filterProjects = []; filterDevs = [];
+  updateMultiBtn('project'); updateMultiBtn('dev');
+  rebuildProjectMultiSelect(); rebuildDevMultiSelect();
+  document.getElementById('filter-status').value = '';
+  document.getElementById('search').value        = '';
   updateFilterBadges();
   renderActiveView();
 }
@@ -414,9 +467,9 @@ async function loadDevelopers() { const r = await fetch(`${API}/api/developers`)
 
 function populateProjectSelects() {
   allTeams.forEach(t => {
-    document.getElementById('filter-project').innerHTML += `<option value="${t.name}">${t.name}</option>`;
-    document.getElementById('dev-project').innerHTML    += `<option value="${t.name}">${t.name}</option>`;
+    document.getElementById('dev-project').innerHTML += `<option value="${t.name}">${t.name}</option>`;
   });
+  rebuildProjectMultiSelect();
   rebuildFormProjectSelect();
   rebuildDevFilter();
 }
@@ -433,12 +486,7 @@ function rebuildFormProjectSelect() {
 }
 
 function rebuildDevFilter() {
-  const sel = document.getElementById('filter-dev');
-  const cur = sel.value;
-  sel.innerHTML = '<option value="">All Developers</option>';
-  const names = [...new Set(allDevelopers.map(d => d.name))].sort();
-  names.forEach(n => { sel.innerHTML += `<option value="${n}">${n}</option>`; });
-  if (cur) sel.value = cur;
+  rebuildDevMultiSelect();
 }
 
 function onProjectChange() {
@@ -501,14 +549,12 @@ function switchView(view) {
 function renderKanban() {
   const board    = document.getElementById('kanban-board');
   const search   = document.getElementById('search').value.toLowerCase();
-  const projFilt = document.getElementById('filter-project').value;
-  const devFilt  = document.getElementById('filter-dev').value;
   const statFilt = document.getElementById('filter-status').value;
 
   const tasks = allTasks.filter(t => {
     if (search && !t.initiative.toLowerCase().includes(search) && !(t.owner||'').toLowerCase().includes(search)) return false;
-    if (projFilt && t.team !== projFilt) return false;
-    if (devFilt  && t.owner !== devFilt) return false;
+    if (filterProjects.length && !filterProjects.includes(t.team))  return false;
+    if (filterDevs.length     && !filterDevs.includes(t.owner))     return false;
     if (statFilt && t.status !== statFilt) return false;
     return true;
   });
@@ -941,16 +987,14 @@ function renderDashboard() {
 // ── Render Gantt ──────────────────────────────────────────────────────────
 function renderGantt() {
   const search   = document.getElementById('search').value.toLowerCase();
-  const projFilt = document.getElementById('filter-project').value;
-  const devFilt  = document.getElementById('filter-dev').value;
   const statFilt = document.getElementById('filter-status').value;
 
   const filtered = allTasks.filter(t => {
     if (search && !t.initiative.toLowerCase().includes(search) &&
         !t.team.toLowerCase().includes(search) &&
         !(t.owner || '').toLowerCase().includes(search)) return false;
-    if (projFilt && t.team !== projFilt) return false;
-    if (devFilt  && t.owner !== devFilt) return false;
+    if (filterProjects.length && !filterProjects.includes(t.team))  return false;
+    if (filterDevs.length     && !filterDevs.includes(t.owner))     return false;
     if (statFilt && t.status !== statFilt) return false;
     return true;
   });
@@ -1051,8 +1095,7 @@ function renderGantt() {
     </div>`;
   } else if (totalRows === 0 && backlog.length === 0) {
     const hasFilters = document.getElementById('search').value
-      || document.getElementById('filter-project').value
-      || document.getElementById('filter-dev').value
+      || filterProjects.length || filterDevs.length
       || document.getElementById('filter-status').value;
     body.innerHTML = `<div class="empty-state">
       <div class="empty-state-icon">📋</div>
@@ -1467,17 +1510,13 @@ function showProjError(msg) {
 }
 
 function appendProjectToSelects(team) {
-  document.getElementById('filter-project').innerHTML += `<option value="${team.name}">${team.name}</option>`;
-  document.getElementById('dev-project').innerHTML    += `<option value="${team.name}">${team.name}</option>`;
+  document.getElementById('dev-project').innerHTML += `<option value="${team.name}">${team.name}</option>`;
+  rebuildProjectMultiSelect();
   rebuildFormProjectSelect();
 }
 
 function rebuildAllProjectDropdowns() {
-  const filterSel = document.getElementById('filter-project');
-  const curFilter = filterSel.value;
-  filterSel.innerHTML = '<option value="">All Projects</option>';
-  allTeams.forEach(t => { filterSel.innerHTML += `<option value="${t.name}">${t.name}</option>`; });
-  filterSel.value = curFilter;
+  rebuildProjectMultiSelect();
 
   const devSel = document.getElementById('dev-project');
   const curDev = devSel.value;

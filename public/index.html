@@ -10,7 +10,7 @@
 <title>Q3 2026 Roadmap</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=20260706120000">
+<link rel="stylesheet" href="style.css?v=20260708090000">
 </head>
 <body>
 
@@ -95,15 +95,13 @@
     <span>⚙</span> Filters<span class="mobile-filter-badge" id="mobile-filter-badge"></span>
   </button>
   <div class="toolbar-filters" id="toolbar-filters">
-    <div class="select-wrap">
-      <select id="filter-project" onchange="renderActiveView();updateFilterBadges()">
-        <option value="">All Projects</option>
-      </select>
+    <div class="select-wrap multi-select-wrap" id="ms-project-wrap">
+      <button class="multi-select-btn" id="ms-project-btn" onclick="toggleMultiDropdown('project')">All Projects ▾</button>
+      <div class="multi-select-dropdown" id="ms-project-drop"></div>
     </div>
-    <div class="select-wrap">
-      <select id="filter-dev" onchange="renderActiveView();updateFilterBadges()">
-        <option value="">All Developers</option>
-      </select>
+    <div class="select-wrap multi-select-wrap" id="ms-dev-wrap">
+      <button class="multi-select-btn" id="ms-dev-btn" onclick="toggleMultiDropdown('dev')">All Developers ▾</button>
+      <div class="multi-select-dropdown" id="ms-dev-drop"></div>
     </div>
     <div class="select-wrap">
       <select id="filter-status" onchange="renderActiveView();updateFilterBadges()">
@@ -492,7 +490,7 @@
   <button class="toast-dismiss" onclick="hideToast()">✕</button>
 </div>
 
-<script src="app.js?v=20260706120000"></script>
+<script src="app.js?v=20260708090000"></script>
 
 <!-- ── Mobile Bottom Nav ── -->
 <nav class="mobile-bottom-nav" id="mobile-nav">
