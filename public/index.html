@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="theme-color" content="#0F172A">
+<meta name="theme-color" content="#2E3440">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Q3 2026 Roadmap</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=20260709224500">
+<link rel="stylesheet" href="style.css?v=20260710133000">
 </head>
 <body>
 
@@ -29,7 +29,7 @@
       <div class="leg-item"><div class="leg-dot" style="background:#3B82F6"></div>Active</div>
       <div class="leg-item"><div class="leg-dot" style="background:#F43F5E"></div>Blocked</div>
       <div class="leg-item"><div class="leg-dot" style="background:#F59E0B"></div>Pending</div>
-      <div class="leg-item"><div class="leg-dot" style="background:#94A3B8"></div>Backlog</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#8B97AB"></div>Backlog</div>
     </div>
     <div class="header-divider"></div>
     <button class="btn-add" onclick="openModal()">
@@ -309,7 +309,7 @@
         </div>
         <input type="hidden" id="f-bar-start" value="-1">
         <input type="hidden" id="f-bar-end"   value="-1">
-        <input type="hidden" id="f-bar-color" value="#4F46E5">
+        <input type="hidden" id="f-bar-color" value="#5E81AC">
       </div>
 
       <div class="form-section">
@@ -344,6 +344,47 @@
         <button type="submit" class="btn-primary" id="form-submit-btn">Save Initiative</button>
       </div>
     </form>
+  </div>
+</div>
+
+<!-- ── Subtask Modal ── -->
+<div class="modal-overlay" id="subtask-modal" onclick="closeSubtaskModalOutside(event)" style="z-index:210">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <div><h2>Edit Task</h2><p id="st-parent-name"></p></div>
+      <button class="modal-close" onclick="closeSubtaskModal()">✕</button>
+    </div>
+    <div class="form-group">
+      <label>Task name</label>
+      <input type="text" id="st-title" onchange="updateSubtask(stEditId, {title: this.value})">
+    </div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Owner</label>
+        <select id="st-owner" onchange="updateSubtask(stEditId, {owner: this.value})"></select>
+      </div>
+      <div class="form-group">
+        <label>Status</label>
+        <label class="milestone-toggle">
+          <input type="checkbox" id="st-done" onchange="toggleSubtask(stEditId, this.checked)">
+          <span class="milestone-toggle-label">✓ Completed</span>
+        </label>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Timeline <span class="label-hint">— drag across weeks</span></label>
+      <div id="st-timeline"></div>
+    </div>
+    <div class="form-section" style="margin-bottom:0">
+      <div class="form-section-title">Status Log <span class="label-hint">— Enter to log</span></div>
+      <div id="st-log"></div>
+      <input type="text" class="subtask-remark" id="st-remark" placeholder="Add status update..."
+        onkeydown="if(event.key==='Enter'){event.preventDefault();addRemark(stEditId, this)}">
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn-secondary" onclick="deleteSubtaskFromModal()" style="color:#DC2626;margin-right:auto">Delete</button>
+      <button type="button" class="btn-primary" onclick="closeSubtaskModal()">Done</button>
+    </div>
   </div>
 </div>
 
@@ -535,7 +576,7 @@
   <button class="toast-dismiss" onclick="hideToast()">✕</button>
 </div>
 
-<script src="app.js?v=20260709224500"></script>
+<script src="app.js?v=20260710133000"></script>
 
 <!-- ── Mobile Bottom Nav ── -->
 <nav class="mobile-bottom-nav" id="mobile-nav">

@@ -17,10 +17,11 @@ async function logout() {
 }
 
 // ── Config / Settings ─────────────────────────────────────────────────────
+// Month tints from Nord: frost blue #5E81AC, frost cyan #88C0D0, aurora green #A3BE8C
 const MONTH_PALETTE = [
-  { header: '#60A5FA', bg: 'rgba(239,246,255,.6)', alt: 'rgba(219,234,254,.35)', picker: 'rgba(239,246,255,.7)' },
-  { header: '#A78BFA', bg: 'rgba(245,243,255,.6)', alt: 'rgba(237,233,254,.35)', picker: 'rgba(245,243,255,.7)' },
-  { header: '#34D399', bg: 'rgba(240,253,244,.6)', alt: 'rgba(220,252,231,.35)', picker: 'rgba(240,253,244,.7)' },
+  { header: '#5E81AC', bg: 'rgba(129,161,193,.20)', alt: 'rgba(129,161,193,.40)', picker: 'rgba(129,161,193,.28)' },
+  { header: '#4E96AE', bg: 'rgba(136,192,208,.18)', alt: 'rgba(136,192,208,.36)', picker: 'rgba(136,192,208,.25)' },
+  { header: '#7C9963', bg: 'rgba(163,190,140,.20)', alt: 'rgba(163,190,140,.40)', picker: 'rgba(163,190,140,.28)' },
 ];
 
 const CFG_KEY = 'gantt-config';
@@ -106,9 +107,9 @@ const PRIORITY_META = {
 };
 
 const KANBAN_COLS = [
-  { id: 'todo',   statuses: ['unscheduled','pending'], dropStatus: 'pending',  label: 'Backlog',      color: '#94A3B8' },
-  { id: 'active', statuses: ['active','blocked','at_risk'], dropStatus: 'active', label: 'In Progress', color: '#3B82F6' },
-  { id: 'done',   statuses: ['done'],                  dropStatus: 'done',     label: 'Done',         color: '#22C55E' },
+  { id: 'todo',   statuses: ['unscheduled','pending'], dropStatus: 'pending',  label: 'Backlog',      color: '#8B97AB' },
+  { id: 'active', statuses: ['active','blocked','at_risk'], dropStatus: 'active', label: 'In Progress', color: '#5E81AC' },
+  { id: 'done',   statuses: ['done'],                  dropStatus: 'done',     label: 'Done',         color: '#85A56B' },
 ];
 
 // ── RAG: auto-computed health status ─────────────────────────────────────
@@ -530,7 +531,7 @@ function rebuildFormProjectSelect() {
   allTeams.forEach(t => {
     sel.innerHTML += `<option value="${t.name}" data-color="${t.color}">${t.name}</option>`;
   });
-  sel.innerHTML += `<option value="__new__" style="color:#4F46E5;font-weight:600">＋ New project...</option>`;
+  sel.innerHTML += `<option value="__new__" style="color:#5E81AC;font-weight:600">＋ New project...</option>`;
   if (cur && cur !== '__new__') sel.value = cur;
 }
 
@@ -664,7 +665,7 @@ function buildKanbanCard(task) {
   card.addEventListener('dragend',   () => card.classList.remove('dragging'));
 
   const team       = allTeams.find(t => t.name === task.team);
-  const color      = team?.color || '#64748B';
+  const color      = team?.color || '#5B6779';
   const pm         = PRIORITY_META[task.priority || 'medium'];
   const rag        = computeRAG(task);
   const ragMeta    = rag ? RAG_META[rag] : null;
@@ -740,8 +741,8 @@ function buildDonutSVG(segments, total) {
   const C = 2 * Math.PI * r;
   if (total === 0) {
     return `<svg width="140" height="140" viewBox="0 0 140 140">
-      <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#F1F5F9" stroke-width="14"/>
-      <text x="${cx}" y="${cy + 5}" text-anchor="middle" font-size="11" fill="#94A3B8">No data</text>
+      <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#ECEFF4" stroke-width="14"/>
+      <text x="${cx}" y="${cy + 5}" text-anchor="middle" font-size="11" fill="#8B97AB">No data</text>
     </svg>`;
   }
   let cumLen = 0, arcs = '';
@@ -754,15 +755,15 @@ function buildDonutSVG(segments, total) {
     cumLen += len;
   });
   return `<svg width="140" height="140" viewBox="0 0 140 140">
-    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#F1F5F9" stroke-width="14"/>
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#ECEFF4" stroke-width="14"/>
     ${arcs}
-    <text x="${cx}" y="${cy - 6}" text-anchor="middle" font-size="26" font-weight="800" fill="#0F172A">${total}</text>
-    <text x="${cx}" y="${cy + 14}" text-anchor="middle" font-size="10" fill="#94A3B8">initiatives</text>
+    <text x="${cx}" y="${cy - 6}" text-anchor="middle" font-size="26" font-weight="800" fill="#2E3440">${total}</text>
+    <text x="${cx}" y="${cy + 14}" text-anchor="middle" font-size="10" fill="#8B97AB">initiatives</text>
   </svg>`;
 }
 
 function buildLoadSVG(tasks, todayWk) {
-  if (!NW) return '<div style="color:#94A3B8;font-size:12px;padding:20px;text-align:center">No weeks configured</div>';
+  if (!NW) return '<div style="color:#8B97AB;font-size:12px;padding:20px;text-align:center">No weeks configured</div>';
   const W = 520, H = 150, padL = 28, padR = 8, padT = 20, padB = 28;
   const plotW = W - padL - padR, plotH = H - padT - padB;
 
@@ -781,8 +782,8 @@ function buildLoadSVG(tasks, todayWk) {
   for (let v = step; v <= maxCount + step - 1; v += step) {
     if (v > maxCount) break;
     const gy = (padT + plotH - (v / maxCount) * plotH).toFixed(1);
-    grid += `<line x1="${padL}" y1="${gy}" x2="${padL + plotW}" y2="${gy}" stroke="#E2E8F0" stroke-width="1"/>
-    <text x="${padL - 4}" y="${(+gy + 3).toFixed(1)}" text-anchor="end" font-size="9" fill="#94A3B8">${v}</text>`;
+    grid += `<line x1="${padL}" y1="${gy}" x2="${padL + plotW}" y2="${gy}" stroke="#D8DEE9" stroke-width="1"/>
+    <text x="${padL - 4}" y="${(+gy + 3).toFixed(1)}" text-anchor="end" font-size="9" fill="#8B97AB">${v}</text>`;
   }
 
   // Bars
@@ -791,12 +792,12 @@ function buildLoadSVG(tasks, todayWk) {
     const x = padL + wi * barW, isToday = wi === todayWk;
     const bh = count > 0 ? Math.max(3, (count / maxCount) * plotH) : 0;
     const y  = padT + plotH - bh;
-    const color = isToday ? '#4F46E5' : count > 7 ? '#F43F5E' : count > 4 ? '#F59E0B' : '#3B82F6';
+    const color = isToday ? '#5E81AC' : count > 7 ? '#F43F5E' : count > 4 ? '#F59E0B' : '#3B82F6';
     if (bh > 0) {
       bars += `<rect x="${(x + 1.5).toFixed(1)}" y="${y.toFixed(1)}" width="${(barW - 3).toFixed(1)}" height="${bh.toFixed(1)}" rx="3"
         fill="${color}" opacity="${isToday ? 1 : 0.75}"><title>${WEEKS[wi]}: ${count} task${count !== 1 ? 's' : ''}</title></rect>`;
     } else {
-      bars += `<rect x="${(x + 1.5).toFixed(1)}" y="${(padT + plotH - 2).toFixed(1)}" width="${(barW - 3).toFixed(1)}" height="2" rx="1" fill="#E2E8F0"/>`;
+      bars += `<rect x="${(x + 1.5).toFixed(1)}" y="${(padT + plotH - 2).toFixed(1)}" width="${(barW - 3).toFixed(1)}" height="2" rx="1" fill="#D8DEE9"/>`;
     }
   });
 
@@ -805,22 +806,22 @@ function buildLoadSVG(tasks, todayWk) {
   MONTHS.forEach((m, i) => {
     if (i > 0) {
       const mx = (padL + m.from * barW).toFixed(1);
-      months += `<line x1="${mx}" y1="${padT}" x2="${mx}" y2="${padT + plotH}" stroke="#CBD5E1" stroke-width="1" stroke-dasharray="2,2"/>`;
+      months += `<line x1="${mx}" y1="${padT}" x2="${mx}" y2="${padT + plotH}" stroke="#C2CCDA" stroke-width="1" stroke-dasharray="2,2"/>`;
     }
     const lx = (padL + (m.from + m.to + 1) / 2 * barW).toFixed(1);
-    months += `<text x="${lx}" y="${H - 4}" text-anchor="middle" font-size="10" font-weight="600" fill="#64748B">${m.short}</text>`;
+    months += `<text x="${lx}" y="${H - 4}" text-anchor="middle" font-size="10" font-weight="600" fill="#5B6779">${m.short}</text>`;
   });
 
   // Today marker
   let todayEl = '';
   if (todayWk >= 0 && todayWk < NW) {
     const tx = (padL + todayWk * barW + barW / 2).toFixed(1);
-    todayEl = `<line x1="${tx}" y1="${padT - 6}" x2="${tx}" y2="${padT + plotH}" stroke="#4F46E5" stroke-width="1.5" stroke-dasharray="3,2"/>
-    <text x="${tx}" y="${padT - 9}" text-anchor="middle" font-size="8" fill="#4F46E5" font-weight="600">Today</text>`;
+    todayEl = `<line x1="${tx}" y1="${padT - 6}" x2="${tx}" y2="${padT + plotH}" stroke="#5E81AC" stroke-width="1.5" stroke-dasharray="3,2"/>
+    <text x="${tx}" y="${padT - 9}" text-anchor="middle" font-size="8" fill="#5E81AC" font-weight="600">Today</text>`;
   }
 
   return `<svg width="100%" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">
-    <rect x="${padL}" y="${padT}" width="${plotW}" height="${plotH}" fill="#F8FAFC" rx="4"/>
+    <rect x="${padL}" y="${padT}" width="${plotW}" height="${plotH}" fill="#F4F6FA" rx="4"/>
     ${grid}${months}${bars}${todayEl}
   </svg>`;
 }
@@ -840,7 +841,7 @@ function buildHeatmapHTML(teams, tasks) {
 
   const order = { critical: 0, at_risk: 1, on_track: 2 };
   rows.sort((a, b) => (order[a.worst] ?? 3) - (order[b.worst] ?? 3));
-  if (!rows.length) return '<div style="color:#94A3B8;font-size:12px;padding:20px">No projects yet</div>';
+  if (!rows.length) return '<div style="color:#8B97AB;font-size:12px;padding:20px">No projects yet</div>';
 
   return rows.map(r => {
     const ragLabel = r.worst ? RAG_META[r.worst]?.label : '—';
@@ -879,16 +880,16 @@ function buildScatterSVG(tasks, todayWk) {
   [25, 50, 75].forEach(p => {
     const gx = (padL + (p / 100) * plotW).toFixed(1);
     const gy = (padT + plotH - (p / 100) * plotH).toFixed(1);
-    grid += `<line x1="${gx}" y1="${padT}" x2="${gx}" y2="${padT + plotH}" stroke="#E2E8F0" stroke-width="1"/>
-    <line x1="${padL}" y1="${gy}" x2="${padL + plotW}" y2="${gy}" stroke="#E2E8F0" stroke-width="1"/>
-    <text x="${gx}" y="${padT + plotH + 11}" text-anchor="middle" font-size="8" fill="#CBD5E1">${p}%</text>
-    <text x="${padL - 4}" y="${(+gy + 3).toFixed(1)}" text-anchor="end" font-size="8" fill="#CBD5E1">${p}%</text>`;
+    grid += `<line x1="${gx}" y1="${padT}" x2="${gx}" y2="${padT + plotH}" stroke="#D8DEE9" stroke-width="1"/>
+    <line x1="${padL}" y1="${gy}" x2="${padL + plotW}" y2="${gy}" stroke="#D8DEE9" stroke-width="1"/>
+    <text x="${gx}" y="${padT + plotH + 11}" text-anchor="middle" font-size="8" fill="#C2CCDA">${p}%</text>
+    <text x="${padL - 4}" y="${(+gy + 3).toFixed(1)}" text-anchor="end" font-size="8" fill="#C2CCDA">${p}%</text>`;
   });
 
   // Shading + diagonal
   const ahead  = `<polygon points="${padL},${padT + plotH} ${padL + plotW},${padT} ${padL},${padT}" fill="#F0FDF4" opacity="0.5"/>`;
   const behind = `<polygon points="${padL},${padT + plotH} ${padL + plotW},${padT + plotH} ${padL + plotW},${padT}" fill="#FEF2F2" opacity="0.4"/>`;
-  const diag   = `<line x1="${padL}" y1="${padT + plotH}" x2="${padL + plotW}" y2="${padT}" stroke="#CBD5E1" stroke-width="1.5" stroke-dasharray="5,3"/>`;
+  const diag   = `<line x1="${padL}" y1="${padT + plotH}" x2="${padL + plotW}" y2="${padT}" stroke="#C2CCDA" stroke-width="1.5" stroke-dasharray="5,3"/>`;
 
   // Dots
   const dots = points.map(p => {
@@ -901,21 +902,21 @@ function buildScatterSVG(tasks, todayWk) {
   });
 
   const axes = `
-    <text x="${padL - 4}" y="${padT + plotH + 4}" text-anchor="end" font-size="9" fill="#94A3B8">0%</text>
-    <text x="${padL + plotW / 2}" y="${H - 1}" text-anchor="middle" font-size="9" fill="#94A3B8" font-weight="600">Expected %</text>
-    <text x="${padL - 4}" y="${padT + 4}" text-anchor="end" font-size="9" fill="#94A3B8">100%</text>
-    <text font-size="9" fill="#94A3B8" font-weight="600" text-anchor="middle"
+    <text x="${padL - 4}" y="${padT + plotH + 4}" text-anchor="end" font-size="9" fill="#8B97AB">0%</text>
+    <text x="${padL + plotW / 2}" y="${H - 1}" text-anchor="middle" font-size="9" fill="#8B97AB" font-weight="600">Expected %</text>
+    <text x="${padL - 4}" y="${padT + 4}" text-anchor="end" font-size="9" fill="#8B97AB">100%</text>
+    <text font-size="9" fill="#8B97AB" font-weight="600" text-anchor="middle"
       transform="rotate(-90) translate(${-(padT + plotH / 2)} ${padL - 26})">Actual %</text>
-    <text x="${padL + plotW - 2}" y="${padT + 10}" text-anchor="end" font-size="8" fill="#94A3B8" font-style="italic">on track ↗</text>`;
+    <text x="${padL + plotW - 2}" y="${padT + 10}" text-anchor="end" font-size="8" fill="#8B97AB" font-style="italic">on track ↗</text>`;
 
   const empty = points.length === 0
-    ? `<text x="${padL + plotW / 2}" y="${padT + plotH / 2 + 4}" text-anchor="middle" font-size="11" fill="#94A3B8">${
+    ? `<text x="${padL + plotW / 2}" y="${padT + plotH / 2 + 4}" text-anchor="middle" font-size="11" fill="#8B97AB">${
         todayWk < 0 ? 'Outside roadmap period' : 'No active tasks with timeline'
       }</text>`
     : '';
 
   return `<svg width="100%" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">
-    <rect x="${padL}" y="${padT}" width="${plotW}" height="${plotH}" fill="#F8FAFC" rx="4"/>
+    <rect x="${padL}" y="${padT}" width="${plotW}" height="${plotH}" fill="#F4F6FA" rx="4"/>
     ${ahead}${behind}${grid}${diag}${dots.join('')}${empty}${axes}
   </svg>`;
 }
@@ -945,8 +946,8 @@ function renderDashboard() {
     { label: 'On Track', value: onTrack.length,  color: '#3B82F6' },
     { label: 'At Risk',  value: atRisk.length,   color: '#F59E0B' },
     { label: 'Critical', value: critical.length, color: '#F43F5E' },
-    { label: 'Pending',  value: pending.length,  color: '#94A3B8' },
-    { label: 'Backlog',  value: backlog.length,  color: '#CBD5E1' },
+    { label: 'Pending',  value: pending.length,  color: '#8B97AB' },
+    { label: 'Backlog',  value: backlog.length,  color: '#C2CCDA' },
   ];
 
   const legend = donutSegs.map(s => s.value > 0 ? `
@@ -1023,7 +1024,7 @@ function renderDashboard() {
   if (blocked.length) {
     html += `<div class="dash-section"><div class="dash-section-title dash-title-blocked">🔴 Blocked (${blocked.length})</div><div class="dash-list">`;
     blocked.forEach(t => {
-      const c = allTeams.find(x => x.name === t.team)?.color || '#64748B';
+      const c = allTeams.find(x => x.name === t.team)?.color || '#5B6779';
       html += `<div class="dash-list-item">
         <span class="tgh-dot" style="background:${c}"></span>
         <span class="dash-item-name">${t.initiative}</span>
@@ -1081,7 +1082,7 @@ function renderGantt() {
   allTeams.forEach(team => {
     const teamName  = team.name;
     const tasks     = scheduled.filter(t => t.team === teamName);
-    const color     = team.color || '#64748B';
+    const color     = team.color || '#5B6779';
     if (!tasks.length) return;
 
     // Project group header
@@ -1124,7 +1125,7 @@ function renderGantt() {
     allTeams.forEach(team => {
       const teamName = team.name;
       const tasks    = backlog.filter(t => t.team === teamName);
-      const color    = team.color || '#64748B';
+      const color    = team.color || '#5B6779';
       if (!tasks.length) return;
 
       const pbh = document.createElement('div');
@@ -1212,8 +1213,8 @@ function buildTaskRow(task, teamColor, todayWk = -1) {
     ${ragMeta ? `<span class="rag-dot ${ragMeta.dot}" title="${ragMeta.label}" style="flex-shrink:0"></span>` : ''}
     ${task.is_milestone ? '<span title="Milestone" style="font-size:11px;flex-shrink:0">◆</span>' : ''}
     <span class="cell-init-text" title="${safeTitle}">${task.initiative}</span>
-    ${subs.length ? `<button type="button" class="subtask-chip subtask-toggle" title="${subsDone} of ${subs.length} tasks done — click to ${expandedTasks.has(task.id) ? 'collapse' : 'expand'}"
-      onclick="event.stopPropagation();toggleExpand(${task.id})">${expandedTasks.has(task.id) ? '▾' : '▸'} ${subsDone}/${subs.length}</button>` : ''}
+    ${subs.length ? `<button type="button" class="subtask-toggle" title="${subsDone} of ${subs.length} tasks done — click to ${expandedTasks.has(task.id) ? 'collapse' : 'expand'}"
+      onclick="event.stopPropagation();toggleExpand(${task.id})">${expandedTasks.has(task.id) ? '▾' : '▸'}</button>` : ''}
     ${task.jira_key ? `<a class="jira-badge" href="${jiraDomain ? `https://${jiraDomain}/browse/${task.jira_key}` : '#'}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="flex-shrink:0">${task.jira_key}</a>` : ''}
     <div class="row-actions">
       <button class="btn-edit" title="Edit" onclick="openModal(${task.id})">✎</button>
@@ -1391,7 +1392,7 @@ function openModal(id = null, defaultStatus = null) {
     document.getElementById('f-dependencies').value = t.dependencies || '';
     document.getElementById('f-bar-start').value    = t.bar_start;
     document.getElementById('f-bar-end').value      = t.bar_end;
-    document.getElementById('f-bar-color').value    = t.bar_color || '#4F46E5';
+    document.getElementById('f-bar-color').value    = t.bar_color || '#5E81AC';
     document.getElementById('f-priority').value     = t.priority  || 'medium';
     const prog = parseInt(t.progress) || 0;
     document.getElementById('f-progress').value     = prog;
@@ -1444,43 +1445,90 @@ function parseRemarks(raw) {
   catch { return [{ t: raw, at: '' }]; }
 }
 
+const weekOpts = sel => `<option value="-1">— No week —</option>`
+  + WEEKS.map((w, i) => `<option value="${i}" ${i === sel ? 'selected' : ''}>${w}</option>`).join('');
+
 function renderSubtasks(taskId) {
   const list = document.getElementById('subtask-list');
   const subs = allSubtasks.filter(s => s.task_id == taskId);
-  const devNames = [...new Set(allDevelopers.map(d => d.name))].sort();
-  const weekOpts = sel => `<option value="-1">— No week —</option>`
-    + WEEKS.map((w, i) => `<option value="${i}" ${i === sel ? 'selected' : ''}>${w}</option>`).join('');
   list.innerHTML = subs.length ? subs.map(s => {
-    const log = parseRemarks(s.remark);
+    const done = parseInt(s.done);
     const bs = parseInt(s.bar_start), be = parseInt(s.bar_end);
+    const log  = parseRemarks(s.remark);
+    const meta = [
+      s.owner || null,
+      bs >= 0 ? (bs === be ? WEEKS[bs] : `${WEEKS[bs]} → ${WEEKS[be]}`) : null,
+      log.length ? `💬 ${log.length}` : null,
+    ].filter(Boolean).join('  ·  ');
     return `
-    <div class="subtask-row ${parseInt(s.done) ? 'subtask-done' : ''}">
-      <div class="subtask-main">
-        <input type="checkbox" ${parseInt(s.done) ? 'checked' : ''} onchange="toggleSubtask(${s.id}, this.checked)">
+    <div class="subtask-row subtask-item ${done ? 'subtask-done' : ''}" onclick="openSubtaskModal(${s.id})">
+      <input type="checkbox" ${done ? 'checked' : ''} onclick="event.stopPropagation()" onchange="toggleSubtask(${s.id}, this.checked)">
+      <div class="subtask-item-main">
         <span class="subtask-title">${escapeHtml(s.title)}</span>
-        <select class="subtask-owner" title="Owner" onchange="updateSubtask(${s.id}, {owner: this.value})">
-          <option value="">— Owner —</option>
-          ${devNames.map(n => `<option value="${escapeHtml(n)}" ${s.owner === n ? 'selected' : ''}>${escapeHtml(n)}</option>`).join('')}
-        </select>
-        <div class="sub-week-strip" data-sid="${s.id}" title="Drag across weeks to set timeline">
-          ${WEEKS.map((w, i) => `<div class="sws-cell ${bs >= 0 && i >= bs && i <= be ? 'sws-on' : ''}" data-w="${i}" title="${w}"></div>`).join('')}
-        </div>
-        ${bs >= 0 ? `<button type="button" class="sws-clear" title="Clear timeline" onclick="updateSubtask(${s.id}, {bar_start:-1, bar_end:-1})">–</button>` : ''}
-        <span class="subtask-weeks-mobile">
-          <select class="subtask-week" title="Start week" onchange="setSubtaskWeeks(${s.id}, this.value, null)">${weekOpts(bs)}</select>
-          <span class="label-hint">→</span>
-          <select class="subtask-week" title="End week" onchange="setSubtaskWeeks(${s.id}, null, this.value)">${weekOpts(be)}</select>
-        </span>
-        <button type="button" class="btn-del" title="Delete" onclick="deleteSubtask(${s.id})">✕</button>
+        ${meta ? `<span class="subtask-meta">${escapeHtml(meta)}</span>` : ''}
       </div>
-      ${log.length ? `<div class="subtask-log">${log.map(r => `
-        <div class="subtask-log-entry">${r.at ? `<span class="subtask-log-date">${r.at}</span>` : ''}${escapeHtml(r.t)}</div>`).join('')}
-      </div>` : ''}
-      <input type="text" class="subtask-remark" placeholder="Add status update... (Enter to log)"
-        onkeydown="if(event.key==='Enter'){event.preventDefault();addRemark(${s.id}, this)}">
+      <button type="button" class="btn-edit" title="Edit" onclick="event.stopPropagation();openSubtaskModal(${s.id})">✎</button>
+      <button type="button" class="btn-del" title="Delete" onclick="event.stopPropagation();deleteSubtask(${s.id})">✕</button>
     </div>`;
   }).join('')
     : '<p class="label-hint" style="margin:4px 0">No tasks yet — break this initiative down below.</p>';
+}
+
+// ── Subtask edit dialog ───────────────────────────────────────────────────
+let stEditId = null;
+
+function openSubtaskModal(id) {
+  const s = allSubtasks.find(x => x.id == id);
+  if (!s) return;
+  stEditId = id;
+  const t = allTasks.find(x => x.id == s.task_id);
+  document.getElementById('st-parent-name').textContent = t ? t.initiative : '';
+  document.getElementById('st-title').value   = s.title;
+  document.getElementById('st-done').checked  = !!parseInt(s.done);
+  const devNames = [...new Set(allDevelopers.map(d => d.name))].sort();
+  document.getElementById('st-owner').innerHTML = '<option value="">— Unassigned —</option>'
+    + devNames.map(n => `<option value="${escapeHtml(n)}" ${s.owner === n ? 'selected' : ''}>${escapeHtml(n)}</option>`).join('');
+  renderSubtaskModalTimeline(s);
+  renderSubtaskModalLog(s);
+  document.getElementById('subtask-modal').classList.add('open');
+}
+
+function closeSubtaskModal() {
+  document.getElementById('subtask-modal').classList.remove('open');
+  stEditId = null;
+}
+function closeSubtaskModalOutside(e) { if (e.target === document.getElementById('subtask-modal')) closeSubtaskModal(); }
+
+function renderSubtaskModalTimeline(s) {
+  const bs = parseInt(s.bar_start), be = parseInt(s.bar_end);
+  document.getElementById('st-timeline').innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px">
+      <div class="sub-week-strip" data-sid="${s.id}" title="Drag across weeks">
+        ${WEEKS.map((w, i) => `<div class="sws-cell ${bs >= 0 && i >= bs && i <= be ? 'sws-on' : ''}" data-w="${i}" title="${w}"></div>`).join('')}
+      </div>
+      ${bs >= 0 ? `<button type="button" class="sws-clear" title="Clear timeline" onclick="updateSubtask(${s.id}, {bar_start:-1, bar_end:-1})">–</button>` : ''}
+    </div>
+    <span class="subtask-weeks-mobile" style="margin-top:6px">
+      <select class="subtask-week" onchange="setSubtaskWeeks(${s.id}, this.value, null)">${weekOpts(bs)}</select>
+      <span class="label-hint">→</span>
+      <select class="subtask-week" onchange="setSubtaskWeeks(${s.id}, null, this.value)">${weekOpts(be)}</select>
+    </span>
+    ${bs >= 0 ? `<p class="label-hint" style="margin-top:4px">${bs === be ? WEEKS[bs] : `${WEEKS[bs]} → ${WEEKS[be]}`}</p>` : ''}`;
+}
+
+function renderSubtaskModalLog(s) {
+  const log = parseRemarks(s.remark);
+  document.getElementById('st-log').innerHTML = log.length
+    ? `<div class="subtask-log">${log.map(r => `
+        <div class="subtask-log-entry">${r.at ? `<span class="subtask-log-date">${r.at}</span>` : ''}${escapeHtml(r.t)}</div>`).join('')}
+      </div>`
+    : '<p class="label-hint" style="margin:4px 0 8px">No updates yet.</p>';
+}
+
+async function deleteSubtaskFromModal() {
+  const id = stEditId;
+  closeSubtaskModal();
+  if (id) await deleteSubtask(id);
 }
 
 // Drag-to-select on the mini week strips (event delegation, modal only)
@@ -1571,6 +1619,11 @@ async function updateSubtask(id, patch) {
                            owner: s.owner || '' })
   });
   renderSubtasks(s.task_id);
+  if (stEditId == id && document.getElementById('subtask-modal').classList.contains('open')) {
+    document.getElementById('st-done').checked = !!parseInt(s.done);
+    renderSubtaskModalTimeline(s);
+    renderSubtaskModalLog(s);
+  }
   renderActiveView();
 }
 
@@ -1619,9 +1672,14 @@ function buildSubtaskRow(sub, task, teamColor, todayWk = -1) {
 
   const ci = document.createElement('div');
   ci.className = 'cell-init';
-  ci.innerHTML = `<span class="subtask-indent">└</span><span class="cell-init-text">${escapeHtml(sub.title)}</span>`;
+  const safeSub = escapeHtml(sub.title).replace(/'/g, "\\'");
+  ci.innerHTML = `<span class="subtask-indent">└</span><span class="cell-init-text">${escapeHtml(sub.title)}</span>
+    <div class="row-actions">
+      <button class="btn-edit" title="Edit" onclick="event.stopPropagation();openSubtaskModal(${sub.id})">✎</button>
+      <button class="btn-del"  title="Delete" onclick="event.stopPropagation();if(confirm('Delete task \\'${safeSub}\\'?'))deleteSubtask(${sub.id})">✕</button>
+    </div>`;
   ci.style.cursor = 'pointer';
-  ci.onclick = () => openModal(task.id);
+  ci.onclick = () => openSubtaskModal(sub.id);
   const lastLog = parseRemarks(sub.remark).at(-1);
   if (lastLog) ci.title = `Latest: ${lastLog.t}`;
   row.appendChild(ci);
@@ -1650,7 +1708,7 @@ function buildSubtaskRow(sub, task, teamColor, todayWk = -1) {
     bar.style.width      = `${(be - bs + 1) * 70 - 8}px`;
     bar.style.background = teamColor;
     bar.title   = sub.title + (lastLog ? `\nLatest: ${lastLog.t}` : '');
-    bar.onclick = () => openModal(task.id);
+    bar.onclick = () => openSubtaskModal(sub.id);
     cb.appendChild(bar);
   } else {
     const lbl = document.createElement('div');
@@ -2020,7 +2078,7 @@ function renderWorkload(todayWk) {
   }
 
   body.innerHTML = ordered.map(({ name, project }) => {
-    const color     = allTeams.find(t => t.name === project)?.color || '#64748B';
+    const color     = allTeams.find(t => t.name === project)?.color || '#5B6779';
     const myTasks   = allTasks.filter(t => t.owner === name);
     const active    = myTasks.filter(t => {
       const bs = parseInt(t.bar_start), be = parseInt(t.bar_end);
