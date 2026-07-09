@@ -40,7 +40,7 @@ function validToken(tok) {
 
 app.use((req, res, next) => {
   if (!APP_PASSWORD) return next();   // auth disabled until APP_PASSWORD is set
-  if (req.path === '/login.html' || req.path === '/api/login' || req.path === '/api/logout') return next();
+  if (req.path === '/login.html' || req.path === '/login-hero.jpeg' || req.path === '/api/login' || req.path === '/api/logout') return next();
   const tok = (req.headers.cookie || '')
     .split(';').map(s => s.trim())
     .find(s => s.startsWith(COOKIE_NAME + '='))

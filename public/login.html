@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Sign in — Q3 Roadmap</title>
+<title>Sign in — Project Roadmap</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&display=swap');
 
@@ -46,20 +46,18 @@ body::before {
   to   { opacity: 1; transform: none; }
 }
 
-.logo {
-  width: 44px; height: 44px; border-radius: 12px;
-  background: linear-gradient(135deg, #6366F1, #8B5CF6);
-  display: flex; align-items: center; justify-content: center;
-  font-family: 'Bricolage Grotesque', sans-serif;
-  font-size: 19px; font-weight: 800; color: #fff;
-  box-shadow: 0 4px 18px rgba(99,102,241,.45);
-  margin-bottom: 18px;
+.hero {
+  display: block;
+  width: 150px; height: auto;
+  margin: 0 auto 14px;
+  user-select: none; -webkit-user-drag: none;
 }
 h1 {
   font-family: 'Bricolage Grotesque', sans-serif;
   font-size: 22px; font-weight: 700; color: #0F172A;
+  text-align: center;
 }
-.sub { font-size: 13px; color: #64748B; margin: 4px 0 24px; }
+.sub { font-size: 13px; color: #64748B; margin: 4px 0 24px; text-align: center; }
 
 label { display: block; font-size: 12px; font-weight: 600; color: #475569; margin-bottom: 6px; }
 input {
@@ -99,8 +97,8 @@ button:disabled { opacity: .6; cursor: default; transform: none; }
 </head>
 <body>
   <form class="card" id="login-form">
-    <div class="logo">Q3</div>
-    <h1>Q3 Roadmap</h1>
+    <img class="hero" src="login-hero.jpeg" alt="Cat and dog carrying a pencil together">
+    <h1>Project Roadmap</h1>
     <p class="sub">Enter the team password to continue.</p>
     <label for="password">Password</label>
     <input type="password" id="password" autocomplete="current-password" autofocus required>
