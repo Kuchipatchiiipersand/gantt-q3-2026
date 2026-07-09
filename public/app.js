@@ -1,5 +1,21 @@
 const API = '';
 
+// ── Auth: session expired anywhere → back to login ────────────────────────
+const _fetch = window.fetch.bind(window);
+window.fetch = async (...args) => {
+  const r = await _fetch(...args);
+  if (r.status === 401 && !String(args[0]).includes('/api/login')) {
+    location.href = '/login.html';
+    return new Promise(() => {});   // halt callers — page is navigating away
+  }
+  return r;
+};
+
+async function logout() {
+  await fetch(`${API}/api/logout`, { method: 'POST' });
+  location.href = '/login.html';
+}
+
 // ── Config / Settings ─────────────────────────────────────────────────────
 const MONTH_PALETTE = [
   { header: '#60A5FA', bg: 'rgba(239,246,255,.6)', alt: 'rgba(219,234,254,.35)', picker: 'rgba(239,246,255,.7)' },
@@ -108,7 +124,7 @@ function computeRAG(task) {
   const elapsed  = Math.max(0, todayWk - bs);
   const total    = be - bs + 1;
   const expected = total > 0 ? (elapsed / total) * 100 : 0;
-  const actual   = parseInt(task.progress) || 0;
+  const actual   = taskProgress(task);
   if (expected > 55 && actual < 25) return 'at_risk';
   return 'on_track';
 }
@@ -119,11 +135,20 @@ const RAG_META = {
   critical: { label: 'Critical', dot: 'rag-critical' },
 };
 
+// Progress: auto-derived from subtask completion when a breakdown exists,
+// otherwise the manually set slider value.
+function taskProgress(task) {
+  const subs = allSubtasks.filter(s => s.task_id == task.id);
+  if (subs.length) return Math.round(subs.filter(s => parseInt(s.done)).length / subs.length * 100);
+  return parseInt(task.progress) || 0;
+}
+
 let currentView = 'gantt';
 
 let allTasks      = [];
 let allTeams      = [];
 let allDevelopers = [];
+let allSubtasks   = [];
 let deleteTargetId = null;
 
 // ── Settings ──────────────────────────────────────────────────────────────
@@ -185,8 +210,9 @@ function hideToast() {
 }
 
 // ── Multi-select filters ──────────────────────────────────────────────────
-let filterProjects = [];
-let filterDevs     = [];
+let filterProjects    = [];
+let filterDevs        = [];
+let filterFocusRanks  = [];
 
 function toggleMultiDropdown(type) {
   const wrap = document.getElementById(`ms-${type}-wrap`);
@@ -196,7 +222,7 @@ function toggleMultiDropdown(type) {
 }
 
 function toggleMultiFilter(type, value) {
-  const arr = type === 'project' ? filterProjects : filterDevs;
+  const arr = type === 'project' ? filterProjects : type === 'priority' ? filterFocusRanks : filterDevs;
   const idx = arr.indexOf(value);
   if (idx === -1) arr.push(value); else arr.splice(idx, 1);
   updateMultiBtn(type);
@@ -205,8 +231,8 @@ function toggleMultiFilter(type, value) {
 }
 
 function updateMultiBtn(type) {
-  const arr  = type === 'project' ? filterProjects : filterDevs;
-  const ph   = type === 'project' ? 'All Projects' : 'All Developers';
+  const arr  = type === 'project' ? filterProjects : type === 'priority' ? filterFocusRanks : filterDevs;
+  const ph   = type === 'project' ? 'All Projects' : type === 'priority' ? 'Top Focus' : 'All Developers';
   const btn  = document.getElementById(`ms-${type}-btn`);
   if (!btn) return;
   btn.textContent = arr.length === 0 ? `${ph} ▾` : arr.length === 1 ? `${arr[0]} ▾` : `${arr.length} selected ▾`;
@@ -234,6 +260,17 @@ function rebuildDevMultiSelect() {
     </label>`).join('');
 }
 
+function rebuildPriorityMultiSelect() {
+  const drop = document.getElementById('ms-priority-drop');
+  if (!drop) return;
+  const opts = [1,2,3,4,5].map(n => [`${n}`, `#${n} Focus`]);
+  drop.innerHTML = opts.map(([val, label]) => `
+    <label class="ms-item">
+      <input type="checkbox" onchange="toggleMultiFilter('priority','${val}')" ${filterFocusRanks.includes(val) ? 'checked' : ''}>
+      ${label}
+    </label>`).join('');
+}
+
 document.addEventListener('click', e => {
   if (!e.target.closest('.multi-select-wrap')) {
     document.querySelectorAll('.multi-select-wrap').forEach(w => w.classList.remove('ms-open'));
@@ -244,8 +281,9 @@ function updateFilterBadges() {
   const stat = document.getElementById('filter-status').value;
   document.getElementById('ms-project-wrap')?.classList.toggle('filter-active', filterProjects.length > 0);
   document.getElementById('ms-dev-wrap')?.classList.toggle('filter-active', filterDevs.length > 0);
+  document.getElementById('ms-priority-wrap')?.classList.toggle('filter-active', filterFocusRanks.length > 0);
   document.getElementById('filter-status').closest('.select-wrap').classList.toggle('filter-active', !!stat);
-  const activeCount = (filterProjects.length > 0 ? 1 : 0) + (filterDevs.length > 0 ? 1 : 0) + (stat ? 1 : 0);
+  const activeCount = (filterProjects.length > 0 ? 1 : 0) + (filterDevs.length > 0 ? 1 : 0) + (filterFocusRanks.length > 0 ? 1 : 0) + (stat ? 1 : 0);
   const clearBtn = document.getElementById('btn-clear-filters');
   if (clearBtn) clearBtn.style.display = activeCount > 0 ? 'flex' : 'none';
   const mBtn = document.getElementById('mobile-filter-btn');
@@ -257,9 +295,9 @@ function updateFilterBadges() {
 }
 
 function clearFilters() {
-  filterProjects = []; filterDevs = [];
-  updateMultiBtn('project'); updateMultiBtn('dev');
-  rebuildProjectMultiSelect(); rebuildDevMultiSelect();
+  filterProjects = []; filterDevs = []; filterFocusRanks = [];
+  updateMultiBtn('project'); updateMultiBtn('dev'); updateMultiBtn('priority');
+  rebuildProjectMultiSelect(); rebuildDevMultiSelect(); rebuildPriorityMultiSelect();
   document.getElementById('filter-status').value = '';
   document.getElementById('search').value        = '';
   updateFilterBadges();
@@ -337,6 +375,8 @@ async function loadJiraConfig() {
     const configured = !!(data.jira_domain && data.jira_email && data.jira_token_set);
     const btn = document.getElementById('btn-jira');
     if (btn) btn.classList.toggle('jira-configured', configured);
+    const lo = document.getElementById('btn-logout');
+    if (lo) lo.style.display = data.auth_enabled ? '' : 'none';
     const domainEl = document.getElementById('jira-domain');
     if (domainEl) {
       domainEl.value = data.jira_domain || '';
@@ -462,7 +502,14 @@ function buildWeekHeaders() {
   });
 }
 
-async function loadTasks()      { const r = await fetch(`${API}/api/tasks?_=${Date.now()}`);      allTasks      = await r.json(); }
+async function loadTasks()      {
+  const [r, rs] = await Promise.all([
+    fetch(`${API}/api/tasks?_=${Date.now()}`),
+    fetch(`${API}/api/subtasks?_=${Date.now()}`),
+  ]);
+  allTasks    = await r.json();
+  allSubtasks = await rs.json();
+}
 async function loadTeams()      { const r = await fetch(`${API}/api/teams`);      allTeams      = await r.json(); }
 async function loadDevelopers() { const r = await fetch(`${API}/api/developers`); allDevelopers = await r.json(); }
 
@@ -471,6 +518,7 @@ function populateProjectSelects() {
     document.getElementById('dev-project').innerHTML += `<option value="${t.name}">${t.name}</option>`;
   });
   rebuildProjectMultiSelect();
+  rebuildPriorityMultiSelect();
   rebuildFormProjectSelect();
   rebuildDevFilter();
 }
@@ -554,8 +602,9 @@ function renderKanban() {
 
   const tasks = allTasks.filter(t => {
     if (search && !t.initiative.toLowerCase().includes(search) && !(t.owner||'').toLowerCase().includes(search)) return false;
-    if (filterProjects.length && !filterProjects.includes(t.team))  return false;
-    if (filterDevs.length     && !filterDevs.includes(t.owner))     return false;
+    if (filterProjects.length   && !filterProjects.includes(t.team))                 return false;
+    if (filterDevs.length       && !filterDevs.includes(t.owner))                    return false;
+    if (filterFocusRanks.length && !filterFocusRanks.includes(String(t.focus_rank))) return false;
     if (statFilt && t.status !== statFilt) return false;
     return true;
   });
@@ -619,7 +668,7 @@ function buildKanbanCard(task) {
   const pm         = PRIORITY_META[task.priority || 'medium'];
   const rag        = computeRAG(task);
   const ragMeta    = rag ? RAG_META[rag] : null;
-  const progress   = parseInt(task.progress) || 0;
+  const progress   = taskProgress(task);
   const safeName   = task.initiative.replace(/'/g, "\\'");
   const safeTitle  = task.initiative.replace(/"/g, '&quot;');
   const isBlocked  = task.status === 'blocked';
@@ -647,6 +696,9 @@ function buildKanbanCard(task) {
   // Status chips
   const blockedChip = isBlocked ? `<span class="kcard-chip kcard-chip-blocked">Blocked</span>` : '';
   const overdueChip = isOverdue ? `<span class="kcard-chip kcard-chip-overdue">+${todayWk - be}w late</span>` : '';
+  const kSubs     = allSubtasks.filter(s => s.task_id == task.id);
+  const kSubsDone = kSubs.filter(s => parseInt(s.done)).length;
+  const subsChip  = kSubs.length ? `<span class="subtask-chip" title="${kSubsDone} of ${kSubs.length} tasks done">☑ ${kSubsDone}/${kSubs.length}</span>` : '';
 
   // Progress row
   const effectiveProgress = isDone ? 100 : progress;
@@ -662,7 +714,7 @@ function buildKanbanCard(task) {
       <div class="kcard-top-left">
         ${ragMeta ? `<span class="rag-dot ${ragMeta.dot}" title="${ragMeta.label}"></span>` : ''}
         <span class="priority-badge ${pm.cls}">${pm.label}</span>
-        ${blockedChip}${overdueChip}
+        ${subsChip}${blockedChip}${overdueChip}
       </div>
       <div class="kcard-actions">
         <button class="btn-edit" onclick="openModal(${task.id})" title="Edit">✎</button>
@@ -782,7 +834,7 @@ function buildHeatmapHTML(teams, tasks) {
     const done    = tt.filter(t => t.status === 'done').length;
     const active  = tt.filter(t => t.status === 'active').length;
     const blocked = tt.filter(t => t.status === 'blocked').length;
-    const avgPct  = Math.round(tt.reduce((s, t) => s + (t.status === 'done' ? 100 : (parseInt(t.progress) || 0)), 0) / tt.length);
+    const avgPct  = Math.round(tt.reduce((s, t) => s + (t.status === 'done' ? 100 : taskProgress(t)), 0) / tt.length);
     return { name: team.name, color: team.color, worst, avgPct, done, active, blocked };
   }).filter(Boolean);
 
@@ -818,7 +870,7 @@ function buildScatterSVG(tasks, todayWk) {
       if (bs < 0 || be < 0 || be < bs) return null;
       const elapsed  = Math.max(0, todayWk - bs);
       const expected = Math.min(100, Math.round((elapsed / (be - bs + 1)) * 100));
-      const actual   = parseInt(t.progress) || 0;
+      const actual   = taskProgress(t);
       return { task: t, expected, actual, rag: computeRAG(t) };
     }).filter(Boolean);
 
@@ -994,11 +1046,17 @@ function renderGantt() {
     if (search && !t.initiative.toLowerCase().includes(search) &&
         !t.team.toLowerCase().includes(search) &&
         !(t.owner || '').toLowerCase().includes(search)) return false;
-    if (filterProjects.length && !filterProjects.includes(t.team))  return false;
-    if (filterDevs.length     && !filterDevs.includes(t.owner))     return false;
+    if (filterProjects.length   && !filterProjects.includes(t.team))                    return false;
+    if (filterDevs.length       && !filterDevs.includes(t.owner))                       return false;
+    if (filterFocusRanks.length && !filterFocusRanks.includes(String(t.focus_rank)))    return false;
     if (statFilt && t.status !== statFilt) return false;
     return true;
   });
+
+  // Sort by focus_rank when rank filter is active (ranked items first, 1→5)
+  if (filterFocusRanks.length) {
+    filtered.sort((a, b) => (parseInt(a.focus_rank)||99) - (parseInt(b.focus_rank)||99));
+  }
 
   // Split: scheduled vs backlog (no timeline)
   const scheduled = filtered.filter(t => parseInt(t.bar_start) >= 0 && parseInt(t.bar_end) >= 0);
@@ -1039,6 +1097,10 @@ function renderGantt() {
     tasks.forEach(task => {
       body.appendChild(buildTaskRow(task, color, todayWk));
       totalRows++;
+      if (expandedTasks.has(task.id)) {
+        allSubtasks.filter(s => s.task_id == task.id)
+          .forEach(s => body.appendChild(buildSubtaskRow(s, task, color, todayWk)));
+      }
     });
   });
 
@@ -1077,6 +1139,10 @@ function renderGantt() {
       tasks.forEach(task => {
         body.appendChild(buildTaskRow(task, color, todayWk));
         totalRows++;
+        if (expandedTasks.has(task.id)) {
+          allSubtasks.filter(s => s.task_id == task.id)
+            .forEach(s => body.appendChild(buildSubtaskRow(s, task, color, todayWk)));
+        }
       });
     });
   }
@@ -1097,7 +1163,7 @@ function renderGantt() {
     </div>`;
   } else if (totalRows === 0 && backlog.length === 0) {
     const hasFilters = document.getElementById('search').value
-      || filterProjects.length || filterDevs.length
+      || filterProjects.length || filterDevs.length || filterFocusRanks.length
       || document.getElementById('filter-status').value;
     body.innerHTML = `<div class="empty-state">
       <div class="empty-state-icon">📋</div>
@@ -1125,7 +1191,7 @@ function buildTaskRow(task, teamColor, todayWk = -1) {
   const ca = document.createElement('div');
   ca.className = 'cell-assignee';
   if (task.owner) {
-    ca.innerHTML = `<span class="cell-assignee-avatar" style="background:${teamColor}">${task.owner[0].toUpperCase()}</span>${task.owner}`; // ponytail: owner cell kept simple, at-risk shown on bar
+    ca.innerHTML = `<span class="cell-assignee-avatar" style="background:${teamColor}">${task.owner[0].toUpperCase()}</span>${task.owner}`;
   } else {
     ca.textContent = '—';
   }
@@ -1139,10 +1205,15 @@ function buildTaskRow(task, teamColor, todayWk = -1) {
   ci.className = 'cell-init';
   const safeTitle = (task.outcome || task.initiative).replace(/"/g, '&quot;');
   const safeName  = task.initiative.replace(/'/g, "\\'");
+  const subs      = allSubtasks.filter(s => s.task_id == task.id);
+  const subsDone  = subs.filter(s => parseInt(s.done)).length;
   ci.innerHTML = `
+    ${task.focus_rank ? `<span class="focus-rank">#${task.focus_rank}</span>` : ''}
     ${ragMeta ? `<span class="rag-dot ${ragMeta.dot}" title="${ragMeta.label}" style="flex-shrink:0"></span>` : ''}
     ${task.is_milestone ? '<span title="Milestone" style="font-size:11px;flex-shrink:0">◆</span>' : ''}
     <span class="cell-init-text" title="${safeTitle}">${task.initiative}</span>
+    ${subs.length ? `<button type="button" class="subtask-chip subtask-toggle" title="${subsDone} of ${subs.length} tasks done — click to ${expandedTasks.has(task.id) ? 'collapse' : 'expand'}"
+      onclick="event.stopPropagation();toggleExpand(${task.id})">${expandedTasks.has(task.id) ? '▾' : '▸'} ${subsDone}/${subs.length}</button>` : ''}
     ${task.jira_key ? `<a class="jira-badge" href="${jiraDomain ? `https://${jiraDomain}/browse/${task.jira_key}` : '#'}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="flex-shrink:0">${task.jira_key}</a>` : ''}
     <div class="row-actions">
       <button class="btn-edit" title="Edit" onclick="openModal(${task.id})">✎</button>
@@ -1154,7 +1225,7 @@ function buildTaskRow(task, teamColor, todayWk = -1) {
   const cs = document.createElement('div');
   cs.className = 'cell-status';
   const sm = STATUS_META[task.status] || STATUS_META.active;
-  const progress = parseInt(task.progress) || 0;
+  const progress = taskProgress(task);
   cs.innerHTML = `<div style="display:flex;flex-direction:column;gap:3px;width:100%">
     <span class="status-chip ${sm.cls}" title="${task.target || ''}">
       <span class="chip-dot"></span>${sm.label}
@@ -1285,6 +1356,18 @@ function buildTaskRow(task, teamColor, todayWk = -1) {
 }
 
 // ── Add / Edit Modal ───────────────────────────────────────────────────────
+// Ranks are unique — saving steals the rank from its current holder,
+// so each option shows who holds it now.
+function rebuildFocusRankSelect(currentId = null) {
+  const sel = document.getElementById('f-focus-rank');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">— Not ranked</option>' + [1, 2, 3, 4, 5].map(n => {
+    const h = allTasks.find(t => parseInt(t.focus_rank) === n && t.id != currentId);
+    const holderNote = h ? ` (now: ${h.initiative.length > 22 ? h.initiative.slice(0, 21) + '…' : h.initiative})` : '';
+    return `<option value="${n}">#${n}${n === 1 ? ' — Top Focus' : ''}${escapeHtml(holderNote)}</option>`;
+  }).join('');
+}
+
 function openModal(id = null, defaultStatus = null) {
   const form = document.getElementById('task-form');
   form.reset();
@@ -1319,7 +1402,17 @@ function openModal(id = null, defaultStatus = null) {
     syncMobilePicker(parseInt(t.bar_start), parseInt(t.bar_end));
     const tdSel = document.getElementById('f-target-date');
     if (tdSel) tdSel.value = parseInt(t.target_date) >= 0 ? parseInt(t.target_date) : -1;
+    rebuildFocusRankSelect(id);
+    const frSel = document.getElementById('f-focus-rank');
+    if (frSel) frSel.value = t.focus_rank ? String(t.focus_rank) : '';
+    document.getElementById('subtask-section').style.display  = '';
+    document.getElementById('task-log-section').style.display = '';
+    renderSubtasks(id);
+    renderTaskLog(id);
   } else {
+    rebuildFocusRankSelect();
+    document.getElementById('subtask-section').style.display  = 'none';
+    document.getElementById('task-log-section').style.display = 'none';
     document.getElementById('modal-title').textContent     = 'Add Initiative';
     document.getElementById('modal-sub').textContent       = 'Fill in the details. Leave timeline empty to add to Backlog.';
     document.getElementById('form-submit-btn').textContent = 'Save Initiative';
@@ -1333,6 +1426,247 @@ function openModal(id = null, defaultStatus = null) {
 
 function closeModal()         { document.getElementById('modal').classList.remove('open'); }
 function closeModalOutside(e) { if (e.target === document.getElementById('modal')) closeModal(); }
+
+// ── Subtasks (task breakdown) ─────────────────────────────────────────────
+const expandedTasks = new Set(JSON.parse(localStorage.getItem('ganttExpanded') || '[]'));
+
+function toggleExpand(taskId) {
+  expandedTasks.has(taskId) ? expandedTasks.delete(taskId) : expandedTasks.add(taskId);
+  localStorage.setItem('ganttExpanded', JSON.stringify([...expandedTasks]));
+  renderGantt();
+}
+
+// ponytail: remarks log stored as JSON array in the subtask.remark TEXT column,
+// separate remarks table if this ever needs multi-user editing
+function parseRemarks(raw) {
+  if (!raw) return [];
+  try { const a = JSON.parse(raw); return Array.isArray(a) ? a : [{ t: raw, at: '' }]; }
+  catch { return [{ t: raw, at: '' }]; }
+}
+
+function renderSubtasks(taskId) {
+  const list = document.getElementById('subtask-list');
+  const subs = allSubtasks.filter(s => s.task_id == taskId);
+  const devNames = [...new Set(allDevelopers.map(d => d.name))].sort();
+  const weekOpts = sel => `<option value="-1">— No week —</option>`
+    + WEEKS.map((w, i) => `<option value="${i}" ${i === sel ? 'selected' : ''}>${w}</option>`).join('');
+  list.innerHTML = subs.length ? subs.map(s => {
+    const log = parseRemarks(s.remark);
+    const bs = parseInt(s.bar_start), be = parseInt(s.bar_end);
+    return `
+    <div class="subtask-row ${parseInt(s.done) ? 'subtask-done' : ''}">
+      <div class="subtask-main">
+        <input type="checkbox" ${parseInt(s.done) ? 'checked' : ''} onchange="toggleSubtask(${s.id}, this.checked)">
+        <span class="subtask-title">${escapeHtml(s.title)}</span>
+        <select class="subtask-owner" title="Owner" onchange="updateSubtask(${s.id}, {owner: this.value})">
+          <option value="">— Owner —</option>
+          ${devNames.map(n => `<option value="${escapeHtml(n)}" ${s.owner === n ? 'selected' : ''}>${escapeHtml(n)}</option>`).join('')}
+        </select>
+        <div class="sub-week-strip" data-sid="${s.id}" title="Drag across weeks to set timeline">
+          ${WEEKS.map((w, i) => `<div class="sws-cell ${bs >= 0 && i >= bs && i <= be ? 'sws-on' : ''}" data-w="${i}" title="${w}"></div>`).join('')}
+        </div>
+        ${bs >= 0 ? `<button type="button" class="sws-clear" title="Clear timeline" onclick="updateSubtask(${s.id}, {bar_start:-1, bar_end:-1})">–</button>` : ''}
+        <span class="subtask-weeks-mobile">
+          <select class="subtask-week" title="Start week" onchange="setSubtaskWeeks(${s.id}, this.value, null)">${weekOpts(bs)}</select>
+          <span class="label-hint">→</span>
+          <select class="subtask-week" title="End week" onchange="setSubtaskWeeks(${s.id}, null, this.value)">${weekOpts(be)}</select>
+        </span>
+        <button type="button" class="btn-del" title="Delete" onclick="deleteSubtask(${s.id})">✕</button>
+      </div>
+      ${log.length ? `<div class="subtask-log">${log.map(r => `
+        <div class="subtask-log-entry">${r.at ? `<span class="subtask-log-date">${r.at}</span>` : ''}${escapeHtml(r.t)}</div>`).join('')}
+      </div>` : ''}
+      <input type="text" class="subtask-remark" placeholder="Add status update... (Enter to log)"
+        onkeydown="if(event.key==='Enter'){event.preventDefault();addRemark(${s.id}, this)}">
+    </div>`;
+  }).join('')
+    : '<p class="label-hint" style="margin:4px 0">No tasks yet — break this initiative down below.</p>';
+}
+
+// Drag-to-select on the mini week strips (event delegation, modal only)
+let swsDrag = null;
+document.addEventListener('mousedown', e => {
+  const cell = e.target.closest('.sws-cell');
+  if (!cell) return;
+  e.preventDefault();
+  const w = parseInt(cell.dataset.w);
+  swsDrag = { sid: cell.parentElement.dataset.sid, a: w, b: w };
+  paintStrip();
+});
+document.addEventListener('mouseover', e => {
+  if (!swsDrag) return;
+  const cell = e.target.closest('.sws-cell');
+  if (!cell || cell.parentElement.dataset.sid !== swsDrag.sid) return;
+  swsDrag.b = parseInt(cell.dataset.w);
+  paintStrip();
+});
+document.addEventListener('mouseup', () => {
+  if (!swsDrag) return;
+  const { sid, a, b } = swsDrag;
+  swsDrag = null;
+  updateSubtask(sid, { bar_start: Math.min(a, b), bar_end: Math.max(a, b) });
+});
+function paintStrip() {
+  const strip = document.querySelector(`.sub-week-strip[data-sid="${swsDrag.sid}"]`);
+  if (!strip) return;
+  const lo = Math.min(swsDrag.a, swsDrag.b), hi = Math.max(swsDrag.a, swsDrag.b);
+  strip.querySelectorAll('.sws-cell').forEach(c => {
+    const w = parseInt(c.dataset.w);
+    c.classList.toggle('sws-on', w >= lo && w <= hi);
+  });
+}
+
+// ── Initiative status log ─────────────────────────────────────────────────
+function renderTaskLog(taskId) {
+  const t = allTasks.find(x => x.id == taskId);
+  const log = parseRemarks(t?.remarks);
+  document.getElementById('task-log-list').innerHTML = log.length
+    ? `<div class="subtask-log">${log.map(r => `
+        <div class="subtask-log-entry">${r.at ? `<span class="subtask-log-date">${r.at}</span>` : ''}${escapeHtml(r.t)}</div>`).join('')}
+      </div>`
+    : '<p class="label-hint" style="margin:4px 0">No updates yet.</p>';
+}
+
+async function addTaskRemark() {
+  const id    = document.getElementById('task-id').value;
+  const input = document.getElementById('task-log-new');
+  const text  = input.value.trim();
+  const t     = allTasks.find(x => x.id == id);
+  if (!id || !text || !t) return;
+  const log = parseRemarks(t.remarks);
+  log.push({ t: text, at: new Date().toISOString().slice(0, 16).replace('T', ' ') });
+  t.remarks = JSON.stringify(log);
+  input.value = '';
+  await fetch(`${API}/api/tasks/${id}`, {
+    method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(t)
+  });
+  renderTaskLog(id);
+}
+
+function escapeHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+async function addSubtask() {
+  const taskId = document.getElementById('task-id').value;
+  const input  = document.getElementById('subtask-new');
+  const title  = input.value.trim();
+  if (!taskId || !title) return;
+  const r = await fetch(`${API}/api/tasks/${taskId}/subtasks`, {
+    method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ title })
+  });
+  allSubtasks.push(await r.json());
+  input.value = '';
+  expandedTasks.add(parseInt(taskId));
+  renderSubtasks(taskId);
+  renderActiveView();
+}
+
+async function updateSubtask(id, patch) {
+  const s = allSubtasks.find(x => x.id == id);
+  if (!s) return;
+  Object.assign(s, patch);
+  await fetch(`${API}/api/subtasks/${id}`, {
+    method: 'PUT', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ title: s.title, done: s.done, remark: s.remark || '',
+                           bar_start: s.bar_start ?? -1, bar_end: s.bar_end ?? -1,
+                           owner: s.owner || '' })
+  });
+  renderSubtasks(s.task_id);
+  renderActiveView();
+}
+
+function toggleSubtask(id, checked) { updateSubtask(id, { done: checked ? 1 : 0 }); }
+
+function setSubtaskWeeks(id, start, end) {
+  const s = allSubtasks.find(x => x.id == id);
+  if (!s) return;
+  let bs = start !== null ? parseInt(start) : parseInt(s.bar_start);
+  let be = end   !== null ? parseInt(end)   : parseInt(s.bar_end);
+  if (bs >= 0 && (be < bs || be < 0)) be = bs;   // keep range valid
+  if (bs < 0) be = -1;
+  updateSubtask(id, { bar_start: bs, bar_end: be });
+}
+
+function addRemark(id, input) {
+  const text = input.value.trim();
+  if (!text) return;
+  const s = allSubtasks.find(x => x.id == id);
+  if (!s) return;
+  const log = parseRemarks(s.remark);
+  log.push({ t: text, at: new Date().toISOString().slice(0, 16).replace('T', ' ') });
+  input.value = '';
+  updateSubtask(id, { remark: JSON.stringify(log) });
+}
+
+async function deleteSubtask(id) {
+  const s = allSubtasks.find(x => x.id == id);
+  if (!s) return;
+  await fetch(`${API}/api/subtasks/${id}`, { method: 'DELETE' });
+  allSubtasks = allSubtasks.filter(x => x.id != id);
+  renderSubtasks(s.task_id);
+  renderActiveView();
+}
+
+// Subtask row on the Gantt chart (shown when parent is expanded)
+function buildSubtaskRow(sub, task, teamColor, todayWk = -1) {
+  const row = document.createElement('div');
+  row.className = 'task-row subtask-gantt-row';
+  const done = parseInt(sub.done);
+
+  const ca = document.createElement('div');
+  ca.className = 'cell-assignee';
+  if (sub.owner) ca.innerHTML = `<span style="padding-left:22px;font-weight:500;color:var(--text-2)">${escapeHtml(sub.owner)}</span>`;
+  row.appendChild(ca);
+
+  const ci = document.createElement('div');
+  ci.className = 'cell-init';
+  ci.innerHTML = `<span class="subtask-indent">└</span><span class="cell-init-text">${escapeHtml(sub.title)}</span>`;
+  ci.style.cursor = 'pointer';
+  ci.onclick = () => openModal(task.id);
+  const lastLog = parseRemarks(sub.remark).at(-1);
+  if (lastLog) ci.title = `Latest: ${lastLog.t}`;
+  row.appendChild(ci);
+
+  const cs = document.createElement('div');
+  cs.className = 'cell-status';
+  cs.innerHTML = `<span class="status-chip ${done ? 's-done' : 's-pending'}"><span class="chip-dot"></span>${done ? 'Done' : 'Open'}</span>`;
+  row.appendChild(cs);
+
+  const cb = document.createElement('div');
+  cb.className = 'cell-bars';
+  cb.style.width = `${NW * 70}px`;
+  WEEKS.forEach((_, wi) => {
+    if (wi > 0) {
+      const d = document.createElement('div');
+      d.className = 'week-divider';
+      d.style.left = `${wi * 70}px`;
+      cb.appendChild(d);
+    }
+  });
+  const bs = parseInt(sub.bar_start), be = parseInt(sub.bar_end);
+  if (bs >= 0 && be >= bs) {
+    const bar = document.createElement('div');
+    bar.className = 'bar sub-bar' + (done ? ' done-bar' : '');
+    bar.style.left       = `${bs * 70 + 4}px`;
+    bar.style.width      = `${(be - bs + 1) * 70 - 8}px`;
+    bar.style.background = teamColor;
+    bar.title   = sub.title + (lastLog ? `\nLatest: ${lastLog.t}` : '');
+    bar.onclick = () => openModal(task.id);
+    cb.appendChild(bar);
+  } else {
+    const lbl = document.createElement('div');
+    lbl.className = 'no-bar-label';
+    lbl.textContent = 'no timeline';
+    cb.appendChild(lbl);
+  }
+  if (todayWk >= 0) {
+    const tl = document.createElement('div');
+    tl.className = 'today-line';
+    tl.style.left = `${todayWk * 70 + 34}px`;
+    cb.appendChild(tl);
+  }
+  row.appendChild(cb);
+  return row;
+}
 
 async function saveTask(e) {
   e.preventDefault();
@@ -1354,6 +1688,8 @@ async function saveTask(e) {
     progress:     parseInt(document.getElementById('f-progress').value) || 0,
     is_milestone: document.getElementById('f-milestone').checked ? 1 : 0,
     target_date:  parseInt(document.getElementById('f-target-date')?.value ?? '-1'),
+    focus_rank:   document.getElementById('f-focus-rank')?.value || null,
+    remarks:      allTasks.find(x => x.id == id)?.remarks || '',
   };
   const btn = document.getElementById('form-submit-btn');
   btn.disabled = true; btn.textContent = 'Saving…';

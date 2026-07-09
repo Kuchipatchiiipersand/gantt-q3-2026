@@ -2,12 +2,71 @@ const express = require('express');
 const { Pool } = require('pg');
 const cors = require('cors');
 const path = require('path');
+const crypto = require('crypto');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
+
+// ── Auth: shared team password via APP_PASSWORD env var ────────────────────
+// ponytail: single shared password + signed cookie; per-user accounts when
+// the team needs individual identity or audit trails
+const APP_PASSWORD = process.env.APP_PASSWORD || '';
+const AUTH_SECRET  = crypto.createHash('sha256').update('gantt-auth:' + APP_PASSWORD).digest();
+const COOKIE_NAME  = 'gantt_auth';
+const SESSION_MS   = 5 * 3600e3;   // sliding window: logged out after 5h of inactivity
+
+const sign = val => crypto.createHmac('sha256', AUTH_SECRET).update(val).digest('hex');
+
+function makeToken() {
+  const exp = String(Date.now() + SESSION_MS);
+  return `${exp}.${sign(exp)}`;
+}
+
+const authCookie = (tok, maxAge = SESSION_MS / 1000) =>
+  `${COOKIE_NAME}=${tok}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${process.env.DATABASE_URL ? '; Secure' : ''}`;
+
+function validToken(tok) {
+  if (!tok) return false;
+  const [exp, sig] = tok.split('.');
+  if (!exp || !sig) return false;
+  const expected = sign(exp);
+  return sig.length === expected.length
+    && crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))
+    && parseInt(exp) > Date.now();
+}
+
+app.use((req, res, next) => {
+  if (!APP_PASSWORD) return next();   // auth disabled until APP_PASSWORD is set
+  if (req.path === '/login.html' || req.path === '/api/login' || req.path === '/api/logout') return next();
+  const tok = (req.headers.cookie || '')
+    .split(';').map(s => s.trim())
+    .find(s => s.startsWith(COOKIE_NAME + '='))
+    ?.slice(COOKIE_NAME.length + 1);
+  if (validToken(tok)) {
+    res.setHeader('Set-Cookie', authCookie(makeToken()));   // slide the 5h window
+    return next();
+  }
+  if (req.path.startsWith('/api/')) return res.status(401).json({ error: 'unauthorized' });
+  res.redirect('/login.html');
+});
+
+app.post('/api/login', (req, res) => {
+  const pw = Buffer.from(String(req.body?.password || ''));
+  const expected = Buffer.from(APP_PASSWORD);
+  const ok = APP_PASSWORD && pw.length === expected.length && crypto.timingSafeEqual(pw, expected);
+  if (!ok) return res.status(401).json({ error: 'Wrong password' });
+  res.setHeader('Set-Cookie', authCookie(makeToken()));
+  res.json({ success: true });
+});
+
+app.post('/api/logout', (req, res) => {
+  res.setHeader('Set-Cookie', authCookie('', 0));
+  res.json({ success: true });
+});
+
 app.use(express.static(path.join(__dirname, 'public'), {
   etag: false,
   lastModified: false,
@@ -86,6 +145,7 @@ async function initSchema() {
         sort_order    INTEGER DEFAULT 0,
         progress      INTEGER DEFAULT 0,
         is_milestone  INTEGER DEFAULT 0,
+        focus_rank    INTEGER DEFAULT NULL,
         created_at    TIMESTAMPTZ DEFAULT NOW(),
         updated_at    TIMESTAMPTZ DEFAULT NOW()
       );
@@ -95,7 +155,22 @@ async function initSchema() {
     await db.run("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS is_milestone INTEGER DEFAULT 0").catch(() => {});
     await db.run("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS jira_key     TEXT").catch(() => {});
     await db.run("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS target_date  INTEGER DEFAULT -1").catch(() => {});
+    await db.run("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS focus_rank   INTEGER DEFAULT NULL").catch(() => {});
+    await db.run("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS remarks      TEXT    DEFAULT ''").catch(() => {});
     await db.query("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)").catch(() => {});
+    await db.query(`CREATE TABLE IF NOT EXISTS subtasks (
+      id SERIAL PRIMARY KEY,
+      task_id INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      done INTEGER DEFAULT 0,
+      remark TEXT DEFAULT '',
+      bar_start INTEGER DEFAULT -1,
+      bar_end INTEGER DEFAULT -1,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )`).catch(() => {});
+    await db.run("ALTER TABLE subtasks ADD COLUMN IF NOT EXISTS bar_start INTEGER DEFAULT -1").catch(() => {});
+    await db.run("ALTER TABLE subtasks ADD COLUMN IF NOT EXISTS bar_end   INTEGER DEFAULT -1").catch(() => {});
+    await db.run("ALTER TABLE subtasks ADD COLUMN IF NOT EXISTS owner     TEXT    DEFAULT ''").catch(() => {});
   } else {
     db.exec(`
       CREATE TABLE IF NOT EXISTS teams (
@@ -128,6 +203,7 @@ async function initSchema() {
         sort_order    INTEGER DEFAULT 0,
         progress      INTEGER DEFAULT 0,
         is_milestone  INTEGER DEFAULT 0,
+        focus_rank    INTEGER DEFAULT NULL,
         created_at    TEXT DEFAULT (datetime('now')),
         updated_at    TEXT DEFAULT (datetime('now'))
       );
@@ -137,7 +213,22 @@ async function initSchema() {
     try { db.exec("ALTER TABLE tasks ADD COLUMN is_milestone INTEGER DEFAULT 0");        } catch(_) {}
     try { db.exec("ALTER TABLE tasks ADD COLUMN jira_key     TEXT");                     } catch(_) {}
     try { db.exec("ALTER TABLE tasks ADD COLUMN target_date  INTEGER DEFAULT -1");        } catch(_) {}
+    try { db.exec("ALTER TABLE tasks ADD COLUMN focus_rank   INTEGER DEFAULT NULL");      } catch(_) {}
+    try { db.exec("ALTER TABLE tasks ADD COLUMN remarks      TEXT    DEFAULT ''");        } catch(_) {}
     try { db.exec("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)"); } catch(_) {}
+    try { db.exec(`CREATE TABLE IF NOT EXISTS subtasks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      task_id INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      done INTEGER DEFAULT 0,
+      remark TEXT DEFAULT '',
+      bar_start INTEGER DEFAULT -1,
+      bar_end INTEGER DEFAULT -1,
+      created_at TEXT DEFAULT (datetime('now'))
+    )`); } catch(_) {}
+    try { db.exec("ALTER TABLE subtasks ADD COLUMN bar_start INTEGER DEFAULT -1"); } catch(_) {}
+    try { db.exec("ALTER TABLE subtasks ADD COLUMN bar_end   INTEGER DEFAULT -1"); } catch(_) {}
+    try { db.exec("ALTER TABLE subtasks ADD COLUMN owner     TEXT    DEFAULT ''"); } catch(_) {}
   }
 }
 
@@ -341,14 +432,18 @@ app.post('/api/tasks', async (req, res) => {
   try {
     const { team, owner='', initiative, outcome='', target='', metric='',
             dependencies='', status='active', priority='medium', bar_start=-1, bar_end=-1,
-            bar_color='#4F46E5', is_blocked=0, progress=0, is_milestone=0, target_date=-1 } = req.body;
+            bar_color='#4F46E5', is_blocked=0, progress=0, is_milestone=0, target_date=-1,
+            focus_rank=null, remarks='' } = req.body;
     if (!team || !initiative) return res.status(400).json({ error: 'team and initiative required' });
     const max = await db.get('SELECT MAX(sort_order) AS m FROM tasks WHERE team=$1', [team]);
     const sort_order = (parseInt(max?.m) || 0) + 1;
+    const fRank = focus_rank ? parseInt(focus_rank) : null;
+    // Focus ranks are unique: taking a rank clears it from its current holder
+    if (fRank) await db.run('UPDATE tasks SET focus_rank=NULL WHERE focus_rank=$1', [fRank]);
     const row = await db.get(
-      `INSERT INTO tasks (team,owner,initiative,outcome,target,metric,dependencies,status,priority,bar_start,bar_end,bar_color,is_blocked,sort_order,progress,is_milestone,target_date)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING *`,
-      [team,owner,initiative,outcome,target,metric,dependencies,status,priority,bar_start,bar_end,bar_color,is_blocked?1:0,sort_order,parseInt(progress)||0,is_milestone?1:0,isNaN(parseInt(target_date)) ? -1 : parseInt(target_date)]
+      `INSERT INTO tasks (team,owner,initiative,outcome,target,metric,dependencies,status,priority,bar_start,bar_end,bar_color,is_blocked,sort_order,progress,is_milestone,target_date,focus_rank,remarks)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19) RETURNING *`,
+      [team,owner,initiative,outcome,target,metric,dependencies,status,priority,bar_start,bar_end,bar_color,is_blocked?1:0,sort_order,parseInt(progress)||0,is_milestone?1:0,isNaN(parseInt(target_date)) ? -1 : parseInt(target_date),fRank,remarks]
     );
     res.json(row);
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -358,14 +453,17 @@ app.put('/api/tasks/:id', async (req, res) => {
   try {
     const { team, initiative, owner='', outcome='', target='', metric='', dependencies='',
             status='active', priority='medium', bar_start=-1, bar_end=-1, bar_color='#4F46E5',
-            is_blocked=0, progress=0, is_milestone=0, target_date=-1 } = req.body;
+            is_blocked=0, progress=0, is_milestone=0, target_date=-1, focus_rank=null, remarks='' } = req.body;
     const now = process.env.DATABASE_URL ? 'NOW()' : "datetime('now')";
+    const fRank = focus_rank ? parseInt(focus_rank) : null;
+    // Focus ranks are unique: taking a rank clears it from its current holder
+    if (fRank) await db.run('UPDATE tasks SET focus_rank=NULL WHERE focus_rank=$1 AND id<>$2', [fRank, req.params.id]);
     const row = await db.get(
       `UPDATE tasks SET team=$1,initiative=$2,owner=$3,outcome=$4,target=$5,metric=$6,dependencies=$7,
        status=$8,priority=$9,bar_start=$10,bar_end=$11,bar_color=$12,is_blocked=$13,
-       progress=$14,is_milestone=$15,target_date=$16,updated_at=${now}
-       WHERE id=$17 RETURNING *`,
-      [team,initiative,owner,outcome,target,metric,dependencies,status,priority,bar_start,bar_end,bar_color,is_blocked?1:0,parseInt(progress)||0,is_milestone?1:0,isNaN(parseInt(target_date)) ? -1 : parseInt(target_date),req.params.id]
+       progress=$14,is_milestone=$15,target_date=$16,focus_rank=$17,remarks=$18,updated_at=${now}
+       WHERE id=$19 RETURNING *`,
+      [team,initiative,owner,outcome,target,metric,dependencies,status,priority,bar_start,bar_end,bar_color,is_blocked?1:0,parseInt(progress)||0,is_milestone?1:0,isNaN(parseInt(target_date)) ? -1 : parseInt(target_date),fRank,remarks,req.params.id]
     );
     res.json(row);
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -374,6 +472,45 @@ app.put('/api/tasks/:id', async (req, res) => {
 app.delete('/api/tasks/:id', async (req, res) => {
   try {
     await db.run('DELETE FROM tasks WHERE id=$1', [req.params.id]);
+    await db.run('DELETE FROM subtasks WHERE task_id=$1', [req.params.id]);
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── API: Subtasks (task breakdown) ────────────────────────────────────────
+app.get('/api/subtasks', async (req, res) => {
+  try { res.json(await db.all('SELECT * FROM subtasks ORDER BY task_id, id')); }
+  catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/tasks/:id/subtasks', async (req, res) => {
+  try {
+    const { title } = req.body;
+    if (!title?.trim()) return res.status(400).json({ error: 'title required' });
+    const row = await db.get(
+      'INSERT INTO subtasks (task_id, title) VALUES ($1,$2) RETURNING *',
+      [req.params.id, title.trim()]
+    );
+    res.json(row);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/subtasks/:id', async (req, res) => {
+  try {
+    const { title, done=0, remark='', bar_start=-1, bar_end=-1, owner='' } = req.body;
+    const bs = isNaN(parseInt(bar_start)) ? -1 : parseInt(bar_start);
+    const be = isNaN(parseInt(bar_end))   ? -1 : parseInt(bar_end);
+    const row = await db.get(
+      'UPDATE subtasks SET title=$1, done=$2, remark=$3, bar_start=$4, bar_end=$5, owner=$6 WHERE id=$7 RETURNING *',
+      [title, done?1:0, remark, bs, be, owner, req.params.id]
+    );
+    res.json(row);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/subtasks/:id', async (req, res) => {
+  try {
+    await db.run('DELETE FROM subtasks WHERE id=$1', [req.params.id]);
     res.json({ success: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -387,6 +524,7 @@ app.get('/api/settings', async (req, res) => {
     const out = { ...obj };
     delete out.jira_token;
     out.jira_token_set = !!obj.jira_token;
+    out.auth_enabled   = !!APP_PASSWORD;
     res.json(out);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });

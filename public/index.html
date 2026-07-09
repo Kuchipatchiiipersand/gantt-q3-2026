@@ -10,7 +10,7 @@
 <title>Q3 2026 Roadmap</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=20260708180000">
+<link rel="stylesheet" href="style.css?v=20260709223000">
 </head>
 <body>
 
@@ -35,6 +35,7 @@
     <button class="btn-add" onclick="openModal()">
       <span class="btn-add-icon">+</span> Add Initiative
     </button>
+    <button class="btn-logout" id="btn-logout" onclick="logout()" title="Sign out" style="display:none">⎋</button>
   </div>
 </header>
 
@@ -102,6 +103,10 @@
     <div class="select-wrap multi-select-wrap" id="ms-dev-wrap">
       <button class="multi-select-btn" id="ms-dev-btn" onclick="toggleMultiDropdown('dev')">All Developers ▾</button>
       <div class="multi-select-dropdown" id="ms-dev-drop"></div>
+    </div>
+    <div class="select-wrap multi-select-wrap" id="ms-priority-wrap">
+      <button class="multi-select-btn" id="ms-priority-btn" onclick="toggleMultiDropdown('priority')">Top Focus ▾</button>
+      <div class="multi-select-dropdown" id="ms-priority-drop"></div>
     </div>
     <div class="select-wrap">
       <select id="filter-status" onchange="renderActiveView();updateFilterBadges()">
@@ -231,6 +236,17 @@
               <option value="low">🟢 Low</option>
             </select>
           </div>
+          <div class="form-group">
+            <label>Focus Rank <span class="label-hint">— top priority order</span></label>
+            <select id="f-focus-rank">
+              <option value="">— Not ranked</option>
+              <option value="1">#1 — Top Focus</option>
+              <option value="2">#2</option>
+              <option value="3">#3</option>
+              <option value="4">#4</option>
+              <option value="5">#5</option>
+            </select>
+          </div>
         </div>
         <div class="form-grid" style="grid-template-columns:1fr auto">
           <div class="form-group" style="margin-bottom:0">
@@ -303,6 +319,24 @@
             <option value="-1">— No target date —</option>
           </select>
         </div>
+      </div>
+
+      <div class="form-section" id="subtask-section" style="display:none">
+        <div class="form-section-title">Task Breakdown <span class="label-hint">— saved instantly · completion drives progress %</span></div>
+        <div id="subtask-list"></div>
+        <div class="dev-add-row" style="margin-top:8px">
+          <div class="form-group" style="flex:1;margin-bottom:0">
+            <input type="text" id="subtask-new" placeholder="Add a task..." onkeydown="if(event.key==='Enter'){event.preventDefault();addSubtask()}">
+          </div>
+          <button type="button" class="btn-secondary" onclick="addSubtask()">+ Add</button>
+        </div>
+      </div>
+
+      <div class="form-section" id="task-log-section" style="display:none">
+        <div class="form-section-title">Status Log <span class="label-hint">— project-level updates, saved instantly</span></div>
+        <div id="task-log-list"></div>
+        <input type="text" id="task-log-new" class="subtask-remark" placeholder="Add status update... (Enter to log)"
+          onkeydown="if(event.key==='Enter'){event.preventDefault();addTaskRemark()}">
       </div>
 
       <div class="modal-footer">
@@ -501,7 +535,7 @@
   <button class="toast-dismiss" onclick="hideToast()">✕</button>
 </div>
 
-<script src="app.js?v=20260708180000"></script>
+<script src="app.js?v=20260709223000"></script>
 
 <!-- ── Mobile Bottom Nav ── -->
 <nav class="mobile-bottom-nav" id="mobile-nav">
