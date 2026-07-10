@@ -1090,9 +1090,11 @@ function renderGantt() {
     gh.className = 'team-group-header';
     gh.style.borderLeft = `4px solid ${color}`;
     gh.innerHTML = `
-      <div class="tgh-dot" style="background:${color}"></div>
-      <span class="tgh-name">${teamName}</span>
-      <span class="tgh-count">${tasks.length}</span>`;
+      <span class="bh-sticky">
+        <div class="tgh-dot" style="background:${color}"></div>
+        <span class="tgh-name">${teamName}</span>
+        <span class="tgh-count">${tasks.length}</span>
+      </span>`;
     body.appendChild(gh);
 
     tasks.forEach(task => {
@@ -1119,7 +1121,7 @@ function renderGantt() {
 
     const bh = document.createElement('div');
     bh.className = 'backlog-header';
-    bh.innerHTML = `<span class="backlog-icon">📋</span> Backlog <span class="tgh-count">${backlog.length}</span>`;
+    bh.innerHTML = `<span class="bh-sticky"><span class="backlog-icon">📋</span> Backlog <span class="tgh-count">${backlog.length}</span></span>`;
     body.appendChild(bh);
 
     allTeams.forEach(team => {
@@ -1132,9 +1134,11 @@ function renderGantt() {
       pbh.className = 'team-group-header';
       pbh.style.borderLeft = `4px solid ${color}`;
       pbh.innerHTML = `
-        <div class="tgh-dot" style="background:${color}"></div>
-        <span class="tgh-name">${teamName}</span>
-        <span class="tgh-count">${tasks.length}</span>`;
+        <span class="bh-sticky">
+          <div class="tgh-dot" style="background:${color}"></div>
+          <span class="tgh-name">${teamName}</span>
+          <span class="tgh-count">${tasks.length}</span>
+        </span>`;
       body.appendChild(pbh);
 
       tasks.forEach(task => {

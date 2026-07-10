@@ -7,9 +7,9 @@
   --header-h: 60px;
   --toolbar-h: 52px;
   --col-assignee: 130px;
-  --col-init: 270px;
+  --col-init: 320px;
   --col-status: 130px;
-  --label-w: 530px;
+  --label-w: 580px;
   --week-w: 70px;
   --row-h: 40px;
 
@@ -296,13 +296,14 @@ header h1 {
 .gantt-outer {
   flex: 1;
   overflow: auto;
-  padding: 20px 28px 40px;
+  /* no padding: scroll-container padding lets rows peek past the sticky header */
 }
 
 .gantt-wrap {
   min-width: calc(var(--label-w) + var(--week-w) * var(--nw, 13) + 2px);
+  margin: 20px 28px 40px;
   border-radius: var(--radius-lg);
-  overflow: hidden;
+  overflow: clip;   /* clip (not hidden): hidden breaks position:sticky on .gantt-header */
   box-shadow: var(--shadow-lg);
   border: 1px solid var(--border);
 }
@@ -385,6 +386,11 @@ header h1 {
   position: sticky; left: 0;
 }
 .team-group-header:first-child { border-top: none; }
+/* Keeps group/backlog header labels visible during horizontal scroll */
+.bh-sticky {
+  position: sticky; left: 16px;
+  display: inline-flex; align-items: center; gap: 10px;
+}
 .tgh-dot { width: 8px; height: 8px; border-radius: 3px; flex-shrink: 0; }
 .tgh-name { font-family: var(--font-display); font-size: 11.5px; font-weight: 700; color: var(--text); text-transform: uppercase; letter-spacing: .7px; }
 .tgh-owner { font-size: 11px; color: var(--text-3); }
@@ -413,7 +419,7 @@ header h1 {
 /* Sticky left columns: Assignee | Initiative | Status */
 .cell-assignee {
   flex: 0 0 var(--col-assignee);
-  position: sticky; left: 0; z-index: 2;
+  position: sticky; left: 0; z-index: 10;
   background: inherit;
   padding: 0 10px 0 14px;
   font-size: 11px; font-weight: 600; color: var(--text-2);
@@ -429,7 +435,7 @@ header h1 {
 }
 .cell-init {
   flex: 0 0 var(--col-init);
-  position: sticky; left: var(--col-assignee); z-index: 2;
+  position: sticky; left: var(--col-assignee); z-index: 10;
   background: inherit;
   padding: 0 12px;
   font-size: 12px; font-weight: 500; color: var(--text);
@@ -441,7 +447,7 @@ header h1 {
 .cell-init-text { flex: 1; }
 .cell-status {
   flex: 0 0 var(--col-status);
-  position: sticky; left: calc(var(--col-assignee) + var(--col-init)); z-index: 2;
+  position: sticky; left: calc(var(--col-assignee) + var(--col-init)); z-index: 10;
   background: inherit;
   padding: 0 10px;
   border-right: 1px solid var(--border);
