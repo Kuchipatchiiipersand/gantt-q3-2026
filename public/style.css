@@ -326,6 +326,8 @@ header h1 {
 .gh-month-spacer {
   flex: 0 0 var(--label-w);
   border-right: 1px solid rgba(255,255,255,.07);
+  position: sticky; left: 0; z-index: 5;
+  background: #2E3440;   /* opaque: hides month cells sliding beneath */
 }
 .gh-month {
   text-align: center; padding: 7px 4px;
@@ -344,6 +346,8 @@ header h1 {
   flex: 0 0 var(--label-w);
   display: flex;
   border-right: 1px solid rgba(255,255,255,.07);
+  position: sticky; left: 0; z-index: 5;
+  background: #2E3440;   /* opaque: hides week cells sliding beneath */
 }
 .gh-col {
   display: flex; align-items: center;
