@@ -900,8 +900,16 @@ header h1 {
   background: #F4F6FA;
   border-bottom: 1px solid var(--border);
 }
+.wl-dev-meta { min-width: 0; }
 .wl-dev-name { font-size: 13px; font-weight: 700; color: var(--text); }
-.wl-dev-project { font-size: 11px; color: var(--text-3); margin-top: 1px; }
+.wl-proj-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; }
+.wl-proj-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 10px; font-weight: 600; color: var(--text-2);
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 99px; padding: 1px 7px 1px 5px;
+}
+.wl-proj-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
 .wl-summary { margin-left: auto; display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
 
 .wl-badge {
@@ -930,8 +938,11 @@ header h1 {
 .wl-t-active   .wl-dot { background: #3B82F6; }
 .wl-t-upcoming .wl-dot { background: #88C0D0; }
 .wl-t-backlog  .wl-dot { background: #8B97AB; }
-.wl-name { flex: 1; color: var(--text); }
-.wl-range { font-size: 10px; color: var(--text-3); white-space: nowrap; }
+.wl-name { flex: 1; color: var(--text); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wl-parent { color: var(--text-3); font-weight: 500; }
+.wl-sub-tag { color: var(--text-3); font-size: 11px; flex-shrink: 0; }
+.wl-t-done .wl-dot { background: #22C55E; }
+.wl-range { font-size: 10px; color: var(--text-3); white-space: nowrap; flex-shrink: 0; }
 .wl-idle { padding: 14px; font-size: 12px; color: var(--text-3); text-align: center; }
 
 /* ══════════════════════════════════════════════
@@ -1414,12 +1425,13 @@ header h1 {
 .dash-legend-dot   { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
 .dash-legend-count { margin-left: auto; font-weight: 700; color: var(--text); font-size: 12px; }
 
-.heatmap-rows { display: flex; flex-direction: column; gap: 12px; }
-.heatmap-row  {
+/* One shared grid so every column lines up across rows (rows use display:contents) */
+.heatmap-rows {
   display: grid;
-  grid-template-columns: minmax(90px, 1.2fr) 80px 100px 36px auto;
-  align-items: center; gap: 10px;
+  grid-template-columns: minmax(90px, 1.4fr) 84px minmax(80px, 1fr) 38px minmax(110px, auto);
+  align-items: center; gap: 12px 10px;
 }
+.heatmap-row { display: contents; }
 .heatmap-team      { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .heatmap-name      { font-size: 12px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .heatmap-rag-cell  { display: flex; align-items: center; gap: 5px; }
@@ -1441,9 +1453,30 @@ header h1 {
   background: var(--surface); border: 1px solid var(--border);
   border-radius: var(--radius); padding: 10px 14px;
   box-shadow: var(--shadow-sm);
+  cursor: pointer; transition: box-shadow .12s, transform .1s, border-color .12s;
 }
+.dash-list-item:hover { box-shadow: var(--shadow-md); transform: translateX(2px); border-color: var(--border-2); }
 .dash-item-name { font-size: 13px; font-weight: 600; color: var(--text); flex: 1; }
 .dash-item-meta { font-size: 11px; color: var(--text-3); white-space: nowrap; }
+
+/* Floating tooltip for the Weekly Load chart */
+.dash-tooltip {
+  display: none; position: fixed; z-index: 400; pointer-events: none;
+  min-width: 180px; max-width: 280px;
+  background: var(--surface); border: 1px solid var(--border-2);
+  border-radius: var(--radius); box-shadow: var(--shadow-lg);
+  padding: 9px 11px; font-size: 12px;
+}
+.dash-tooltip .dt-head {
+  font-weight: 700; color: var(--text); font-size: 11px;
+  padding-bottom: 6px; margin-bottom: 6px; border-bottom: 1px solid var(--border);
+}
+.dash-tooltip .dt-row { display: flex; align-items: center; gap: 7px; padding: 2px 0; }
+.dash-tooltip .dt-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.dash-tooltip .dt-name { color: var(--text); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dash-tooltip .dt-owner { color: var(--text-3); font-size: 10px; flex-shrink: 0; }
+.dash-tooltip .dt-empty { color: var(--text-3); font-style: italic; }
+.dash-tooltip .dt-more { color: var(--text-3); font-size: 10px; padding-top: 5px; margin-top: 4px; border-top: 1px solid var(--border); }
 
 /* Scrollbar */
 ::-webkit-scrollbar { width: 7px; height: 7px; }
