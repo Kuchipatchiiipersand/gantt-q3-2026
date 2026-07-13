@@ -694,6 +694,8 @@ function buildKanbanCard(task) {
 
   card.addEventListener('dragstart', e => { e.dataTransfer.setData('taskId', task.id); card.classList.add('dragging'); });
   card.addEventListener('dragend',   () => card.classList.remove('dragging'));
+  // Whole card opens the read-only detail view; action buttons & links stopPropagation.
+  card.addEventListener('click', () => openDetail(task.id));
 
   const team       = allTeams.find(t => t.name === task.team);
   const color      = team?.color || '#5B6779';
@@ -741,21 +743,32 @@ function buildKanbanCard(task) {
       </div>`
     : '';
 
+  // Outcome snippet + RAG label + subtask checklist preview (max 3)
+  const outcomeHtml = task.outcome ? `<div class="kcard-outcome">${escapeHtml(task.outcome)}</div>` : '';
+  const ragLabelHtml = ragMeta ? `<span class="kcard-rag"><span class="rag-dot ${ragMeta.dot}"></span>${ragMeta.label}</span>` : '';
+  const subsPreview = kSubs.length
+    ? `<ul class="kcard-subs">${kSubs.slice(0, 3).map(s =>
+        `<li class="${parseInt(s.done) ? 'is-done' : ''}"><span class="kcard-sub-box">${parseInt(s.done) ? '✓' : ''}</span>${escapeHtml(s.title)}</li>`).join('')}
+        ${kSubs.length > 3 ? `<li class="kcard-subs-more">+${kSubs.length - 3} more</li>` : ''}</ul>`
+    : '';
+
   card.innerHTML = `
     <div class="kcard-top">
       <div class="kcard-top-left">
-        ${ragMeta ? `<span class="rag-dot ${ragMeta.dot}" title="${ragMeta.label}"></span>` : ''}
+        ${ragLabelHtml}
         <span class="priority-badge ${pm.cls}">${pm.label}</span>
         ${subsChip}${blockedChip}${overdueChip}
       </div>
       <div class="kcard-actions">
-        <button class="btn-edit" onclick="openModal(${task.id})" title="Edit">✎</button>
-        <button class="btn-del"  onclick="openDelete(${task.id},'${safeName}')" title="Delete">✕</button>
+        <button class="btn-edit" onclick="event.stopPropagation();openModal(${task.id})" title="Edit">✎</button>
+        <button class="btn-del"  onclick="event.stopPropagation();openDelete(${task.id},'${safeName}')" title="Delete">✕</button>
       </div>
     </div>
     <div class="kcard-title" title="${safeTitle}">${isDone ? '✓ ' : ''}${task.initiative}</div>
+    ${outcomeHtml}
     ${timelineHtml || overdueChip ? `<div class="kcard-meta-row">${timelineHtml}</div>` : ''}
     ${progressHtml}
+    ${subsPreview}
     <div class="kcard-footer">
       <span class="kcard-project" style="border-left:3px solid ${color};padding-left:6px">${task.team}</span>
       ${task.jira_key ? `<a class="jira-badge" href="${jiraDomain ? `https://${jiraDomain}/browse/${task.jira_key}` : '#'}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${task.jira_key}</a>` : ''}
@@ -764,6 +777,59 @@ function buildKanbanCard(task) {
 
   return card;
 }
+
+// ── Task detail (read-only quick view; Edit hands off to the full modal) ────
+function openDetail(id) {
+  const t = allTasks.find(x => x.id == id);
+  if (!t) return;
+  const team    = allTeams.find(x => x.name === t.team);
+  const color   = team?.color || '#5B6779';
+  const sm      = STATUS_META[t.status] || STATUS_META.active;
+  const pm      = PRIORITY_META[t.priority || 'medium'];
+  const rag     = computeRAG(t);
+  const ragMeta = rag ? RAG_META[rag] : null;
+  const bs = parseInt(t.bar_start), be = parseInt(t.bar_end);
+  const timeStr = (bs >= 0 && be >= 0 && WEEKS[bs] && WEEKS[be])
+    ? (bs === be ? WEEKS[bs] : `${WEEKS[bs]} – ${WEEKS[be]}`)
+    : 'Backlog — no dates set';
+  const prog  = t.status === 'done' ? 100 : taskProgress(t);
+  const subs  = allSubtasks.filter(s => s.task_id == t.id);
+  const done  = subs.filter(s => parseInt(s.done)).length;
+  const meta  = (k, v) => v ? `<div class="detail-meta"><span class="detail-meta-k">${k}</span><span class="detail-meta-v">${v}</span></div>` : '';
+
+  document.getElementById('detail-body').innerHTML = `
+    <div class="modal-header">
+      <div>
+        <h2>${escapeHtml((t.is_milestone && parseInt(t.is_milestone) ? '◆ ' : '') + t.initiative)}</h2>
+        <p><span class="status-chip ${sm.cls}"><span class="chip-dot"></span>${sm.label}</span></p>
+      </div>
+      <button class="modal-close" onclick="closeDetail()">✕</button>
+    </div>
+    ${t.outcome ? `<div class="detail-outcome">${escapeHtml(t.outcome)}</div>` : ''}
+    <div class="detail-meta-grid">
+      ${meta('Project', `<span style="border-left:3px solid ${color};padding-left:6px">${escapeHtml(t.team)}</span>`)}
+      ${meta('Owner', escapeHtml(t.owner || '—'))}
+      ${meta('Priority', `<span class="priority-badge ${pm.cls}">${pm.label}</span>`)}
+      ${meta('Timeline', escapeHtml(timeStr))}
+      ${ragMeta ? meta('Health', `<span class="rag-dot ${ragMeta.dot}"></span> ${ragMeta.label}`) : ''}
+      ${t.target ? meta('Target', escapeHtml(t.target)) : ''}
+    </div>
+    ${prog > 0 ? `<div class="detail-progress"><div class="kcard-progress"><div class="kcard-progress-fill" style="width:${prog}%"></div></div><span class="kcard-progress-pct">${prog}%</span></div>` : ''}
+    <div class="detail-section">
+      <div class="form-section-title">Tasks ${subs.length ? `<span class="label-hint">${done}/${subs.length} done</span>` : ''}</div>
+      ${subs.length
+        ? `<ul class="detail-subs">${subs.map(s => `<li class="${parseInt(s.done) ? 'is-done' : ''}"><span class="kcard-sub-box">${parseInt(s.done) ? '✓' : ''}</span>${escapeHtml(s.title)}</li>`).join('')}</ul>`
+        : '<p class="label-hint" style="margin:2px 0 0">No breakdown yet.</p>'}
+    </div>
+    <div class="modal-footer">
+      ${t.jira_key ? `<a class="jira-badge" href="${jiraDomain ? `https://${jiraDomain}/browse/${t.jira_key}` : '#'}" target="_blank" rel="noopener" style="margin-right:auto">${t.jira_key}</a>` : ''}
+      <button type="button" class="btn-secondary" onclick="closeDetail()">Close</button>
+      <button type="button" class="btn-primary" onclick="closeDetail();openModal(${t.id})">Edit</button>
+    </div>`;
+  document.getElementById('detail-modal').classList.add('open');
+}
+function closeDetail()         { document.getElementById('detail-modal').classList.remove('open'); }
+function closeDetailOutside(e) { if (e.target === document.getElementById('detail-modal')) closeDetail(); }
 
 // ── Dashboard Chart Helpers ───────────────────────────────────────────────
 
