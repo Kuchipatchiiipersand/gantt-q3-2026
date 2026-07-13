@@ -892,10 +892,18 @@ function buildLoadSVG(tasks, todayWk) {
     const color = isToday ? '#5E81AC' : count > 7 ? '#F43F5E' : count > 4 ? '#F59E0B' : '#3B82F6';
     if (bh > 0) {
       bars += `<rect x="${(x + 1.5).toFixed(1)}" y="${y.toFixed(1)}" width="${(barW - 3).toFixed(1)}" height="${bh.toFixed(1)}" rx="3"
-        fill="${color}" opacity="${isToday ? 1 : 0.75}"><title>${WEEKS[wi]}: ${count} task${count !== 1 ? 's' : ''}</title></rect>`;
+        fill="${color}" opacity="${isToday ? 1 : 0.75}"/>`;
     } else {
       bars += `<rect x="${(x + 1.5).toFixed(1)}" y="${(padT + plotH - 2).toFixed(1)}" width="${(barW - 3).toFixed(1)}" height="2" rx="1" fill="#D8DEE9"/>`;
     }
+  });
+
+  // Transparent full-column hover targets → custom tooltip listing that week's initiatives
+  let hovers = '';
+  counts.forEach((count, wi) => {
+    const x = padL + wi * barW;
+    hovers += `<rect x="${x.toFixed(1)}" y="${padT}" width="${barW.toFixed(1)}" height="${plotH}" fill="transparent" style="cursor:pointer"
+      onmouseover="showLoadTip(event,${wi})" onmousemove="moveLoadTip(event)" onmouseout="hideLoadTip()"/>`;
   });
 
   // Month separators + labels
@@ -919,8 +927,40 @@ function buildLoadSVG(tasks, todayWk) {
 
   return `<svg width="100%" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">
     <rect x="${padL}" y="${padT}" width="${plotW}" height="${plotH}" fill="#F4F6FA" rx="4"/>
-    ${grid}${months}${bars}${todayEl}
+    ${grid}${months}${bars}${todayEl}${hovers}
   </svg>`;
+}
+
+// Custom hover tooltip for the Weekly Load chart (floats at the cursor)
+function showLoadTip(e, wi) {
+  const active = allTasks.filter(t => {
+    const bs = parseInt(t.bar_start), be = parseInt(t.bar_end);
+    return bs >= 0 && be >= 0 && wi >= bs && wi <= be;
+  });
+  const rows = active.slice(0, 8).map(t => {
+    const c = allTeams.find(x => x.name === t.team)?.color || '#5B6779';
+    return `<div class="dt-row"><span class="dt-dot" style="background:${c}"></span><span class="dt-name">${escapeHtml(t.initiative)}</span>${t.owner ? `<span class="dt-owner">${escapeHtml(t.owner)}</span>` : ''}</div>`;
+  }).join('');
+  const el = document.getElementById('dash-tooltip') || Object.assign(document.body.appendChild(document.createElement('div')), { id: 'dash-tooltip', className: 'dash-tooltip' });
+  el.innerHTML = `<div class="dt-head">${escapeHtml(WEEKS[wi] || '')} · ${active.length} active</div>`
+    + (rows || '<div class="dt-empty">No initiatives this week</div>')
+    + (active.length > 8 ? `<div class="dt-more">+${active.length - 8} more</div>` : '');
+  el.style.display = 'block';
+  moveLoadTip(e);
+}
+function moveLoadTip(e) {
+  const el = document.getElementById('dash-tooltip');
+  if (!el) return;
+  const pad = 14;
+  let x = e.clientX + pad, y = e.clientY + pad;
+  if (x + el.offsetWidth  > window.innerWidth)  x = e.clientX - el.offsetWidth  - pad;
+  if (y + el.offsetHeight > window.innerHeight) y = e.clientY - el.offsetHeight - pad;
+  el.style.left = `${Math.max(4, x)}px`;
+  el.style.top  = `${Math.max(4, y)}px`;
+}
+function hideLoadTip() {
+  const el = document.getElementById('dash-tooltip');
+  if (el) el.style.display = 'none';
 }
 
 function buildHeatmapHTML(teams, tasks) {
@@ -995,7 +1035,7 @@ function buildScatterSVG(tasks, todayWk) {
     const color = p.rag === 'critical' ? '#F43F5E' : p.rag === 'at_risk' ? '#F59E0B' : '#22C55E';
     const tip   = `${p.task.initiative.replace(/</g, '&lt;')}\nExpected: ${p.expected}% · Actual: ${p.actual}%`;
     return `<circle cx="${cx}" cy="${cy}" r="5.5" fill="${color}" stroke="white" stroke-width="1.5"
-      opacity="0.88" style="cursor:pointer" onclick="openModal(${p.task.id})"><title>${tip}</title></circle>`;
+      opacity="0.88" style="cursor:pointer" onclick="openDetail(${p.task.id})"><title>${tip}</title></circle>`;
   });
 
   const axes = `
@@ -1079,7 +1119,7 @@ function renderDashboard() {
     </div>
     <div class="dash-chart-card">
       <div class="dash-chart-title">Progress vs Expected</div>
-      <div class="dash-chart-sub">Green zone = ahead · red zone = behind · click any dot to edit</div>
+      <div class="dash-chart-sub">Green zone = ahead · red zone = behind · click any dot for details</div>
       ${buildScatterSVG(allTasks, todayWk)}
       <div class="scatter-legend">
         <span><span class="rag-dot rag-on_track"></span>On Track</span>
@@ -1094,11 +1134,11 @@ function renderDashboard() {
     atRisk.forEach(t => {
       const be = parseInt(t.bar_end);
       const wl = (be >= 0 && todayWk >= 0) ? be - todayWk : null;
-      html += `<div class="dash-list-item">
+      html += `<div class="dash-list-item" onclick="openDetail(${t.id})">
         <span class="rag-dot rag-at_risk"></span>
         <span class="dash-item-name">${t.initiative}</span>
         <span class="dash-item-meta">${t.team}${wl !== null ? ` · ${wl} wks left` : ''}</span>
-        <button class="btn-edit" onclick="openModal(${t.id})" title="Edit">✎</button>
+        <button class="btn-edit" onclick="event.stopPropagation();openModal(${t.id})" title="Edit">✎</button>
       </div>`;
     });
     html += `</div></div>`;
@@ -1108,11 +1148,11 @@ function renderDashboard() {
     html += `<div class="dash-section"><div class="dash-section-title dash-title-blocked">⚠ Overdue (${overdue.length})</div><div class="dash-list">`;
     overdue.forEach(t => {
       const wl = todayWk >= 0 ? todayWk - parseInt(t.bar_end) : 0;
-      html += `<div class="dash-list-item">
+      html += `<div class="dash-list-item" onclick="openDetail(${t.id})">
         <span class="rag-dot rag-critical"></span>
         <span class="dash-item-name">${t.initiative}</span>
         <span class="dash-item-meta" style="color:#BE123C">${t.team} · ${wl} wks late</span>
-        <button class="btn-edit" onclick="openModal(${t.id})" title="Edit">✎</button>
+        <button class="btn-edit" onclick="event.stopPropagation();openModal(${t.id})" title="Edit">✎</button>
       </div>`;
     });
     html += `</div></div>`;
@@ -1122,11 +1162,11 @@ function renderDashboard() {
     html += `<div class="dash-section"><div class="dash-section-title dash-title-blocked">🔴 Blocked (${blocked.length})</div><div class="dash-list">`;
     blocked.forEach(t => {
       const c = allTeams.find(x => x.name === t.team)?.color || '#5B6779';
-      html += `<div class="dash-list-item">
+      html += `<div class="dash-list-item" onclick="openDetail(${t.id})">
         <span class="tgh-dot" style="background:${c}"></span>
         <span class="dash-item-name">${t.initiative}</span>
         <span class="dash-item-meta">${t.team}${t.owner ? ' · ' + t.owner : ''}</span>
-        <button class="btn-edit" onclick="openModal(${t.id})" title="Edit">✎</button>
+        <button class="btn-edit" onclick="event.stopPropagation();openModal(${t.id})" title="Edit">✎</button>
       </div>`;
     });
     html += `</div></div>`;
@@ -2162,66 +2202,83 @@ function closeWorkloadOutside(e)      { if (e.target === document.getElementById
 
 function renderWorkload(todayWk) {
   const body = document.getElementById('workload-body');
+  const taskById = new Map(allTasks.map(t => [t.id, t]));
 
-  // Collect all unique developer names + their project
-  const devMap = {}; // name → project
-  allDevelopers.forEach(d => { devMap[d.name] = d.project; });
-  // Also include owners from tasks not in dev list
-  allTasks.forEach(t => { if (t.owner && !devMap[t.owner]) devMap[t.owner] = t.team; });
-
-  // Order: follow allTeams order, then allDevelopers order within team
-  const ordered = [];
-  allTeams.forEach(team => {
-    const teamDevs = allDevelopers.filter(d => d.project === team.name);
-    teamDevs.forEach(d => { if (!ordered.find(x => x.name === d.name && x.project === d.project)) ordered.push({ name: d.name, project: d.project }); });
-    // Unlisted owners for this team
-    [...new Set(allTasks.filter(t => t.team === team.name && t.owner && !teamDevs.find(d => d.name === t.owner)).map(t => t.owner))]
-      .forEach(n => ordered.push({ name: n, project: team.name }));
+  // One entry per developer NAME. A dev can span multiple projects — collect them all.
+  const devs = new Map(); // name → { projects:Set }
+  const seed = name => devs.get(name) || devs.set(name, { projects: new Set() }).get(name);
+  allDevelopers.forEach(d => seed(d.name).projects.add(d.project));
+  allTasks.forEach(t => { if (t.owner) seed(t.owner).projects.add(t.team); });
+  allSubtasks.forEach(s => {
+    if (!s.owner) return;
+    const parent = taskById.get(parseInt(s.task_id));
+    seed(s.owner).projects.add(parent ? parent.team : '—');
   });
 
-  if (!ordered.length) {
+  if (!devs.size) {
     body.innerHTML = '<div class="dev-list-empty" style="padding:40px">No developers found. Add developers via ⚙ Manage.</div>';
     return;
   }
 
-  body.innerHTML = ordered.map(({ name, project }) => {
-    const color     = allTeams.find(t => t.name === project)?.color || '#5B6779';
-    const myTasks   = allTasks.filter(t => t.owner === name);
-    const active    = myTasks.filter(t => {
-      const bs = parseInt(t.bar_start), be = parseInt(t.bar_end);
-      return bs >= 0 && be >= 0 && bs <= todayWk && todayWk <= be && t.status !== 'done';
-    });
-    const upcoming  = myTasks.filter(t => {
-      const bs = parseInt(t.bar_start);
-      return bs > todayWk && t.status !== 'done';
-    });
-    const backlogT  = myTasks.filter(t => parseInt(t.bar_start) < 0 || parseInt(t.bar_end) < 0);
-    const done      = myTasks.filter(t => t.status === 'done');
+  // Order by team, then any remaining devs
+  const names = [];
+  allTeams.forEach(team => devs.forEach((v, n) => { if (v.projects.has(team.name) && !names.includes(n)) names.push(n); }));
+  devs.forEach((_, n) => { if (!names.includes(n)) names.push(n); });
 
-    const taskChip = (t, cls) => `<div class="wl-task ${cls}">
-      <span class="wl-dot"></span>
-      <span class="wl-name">${t.initiative}</span>
-      ${t.bar_start >= 0 ? `<span class="wl-range">${WEEKS[t.bar_start].split('–')[0]}–${WEEKS[t.bar_end]}</span>` : ''}
-    </div>`;
+  // Categorize an item (initiative or subtask) by its window position
+  const bucket = (bs, be, done) => {
+    if (done) return 'done';
+    if (bs < 0 || be < 0) return 'backlog';
+    if (bs > todayWk) return 'upcoming';
+    return 'active';   // spans/precedes today and not done
+  };
+
+  const chip = (it, cls) => `<div class="wl-task ${cls}">
+    <span class="wl-dot"></span>
+    ${it.sub ? '<span class="wl-sub-tag" title="Subtask">↳</span>' : ''}
+    <span class="wl-name">${escapeHtml(it.title)}${it.sub && it.parent ? `<span class="wl-parent"> · ${escapeHtml(it.parent)}</span>` : ''}</span>
+    ${it.bs >= 0 && WEEKS[it.bs] ? `<span class="wl-range">${WEEKS[it.bs].split('–')[0]}–${WEEKS[it.be]}</span>` : ''}
+  </div>`;
+
+  body.innerHTML = names.map(name => {
+    const { projects } = devs.get(name);
+    const color = allTeams.find(t => t.name === [...projects][0])?.color || '#5B6779';
+
+    // Unified items: this dev's initiatives + assigned subtasks
+    const items = [];
+    allTasks.filter(t => t.owner === name).forEach(t =>
+      items.push({ title: t.initiative, bs: parseInt(t.bar_start), be: parseInt(t.bar_end), done: t.status === 'done', sub: false }));
+    allSubtasks.filter(s => s.owner === name).forEach(s => {
+      const parent = taskById.get(parseInt(s.task_id));
+      items.push({ title: s.title, bs: parseInt(s.bar_start), be: parseInt(s.bar_end), done: !!parseInt(s.done), sub: true, parent: parent?.initiative || '' });
+    });
+
+    const g = { active: [], upcoming: [], backlog: [], done: [] };
+    items.forEach(it => g[bucket(it.bs, it.be, it.done)].push(it));
+
+    const projChips = [...projects].map(p => {
+      const c = allTeams.find(t => t.name === p)?.color || '#5B6779';
+      return `<span class="wl-proj-chip"><span class="wl-proj-dot" style="background:${c}"></span>${escapeHtml(p)}</span>`;
+    }).join('');
 
     return `<div class="wl-card">
       <div class="wl-card-header">
-        <div class="dev-avatar" style="background:${color}">${name[0].toUpperCase()}</div>
-        <div>
-          <div class="wl-dev-name">${name}</div>
-          <div class="wl-dev-project">${project}</div>
+        <div class="dev-avatar" style="background:${color}">${escapeHtml(name[0].toUpperCase())}</div>
+        <div class="wl-dev-meta">
+          <div class="wl-dev-name">${escapeHtml(name)}</div>
+          <div class="wl-proj-chips">${projChips}</div>
         </div>
         <div class="wl-summary">
-          ${active.length   ? `<span class="wl-badge wl-active">${active.length} active</span>`  : ''}
-          ${upcoming.length ? `<span class="wl-badge wl-upcoming">${upcoming.length} upcoming</span>` : ''}
-          ${backlogT.length ? `<span class="wl-badge wl-backlog">${backlogT.length} backlog</span>` : ''}
-          ${done.length     ? `<span class="wl-badge wl-done">${done.length} done</span>` : ''}
+          ${g.active.length   ? `<span class="wl-badge wl-active">${g.active.length} active</span>`  : ''}
+          ${g.upcoming.length ? `<span class="wl-badge wl-upcoming">${g.upcoming.length} upcoming</span>` : ''}
+          ${g.backlog.length  ? `<span class="wl-badge wl-backlog">${g.backlog.length} backlog</span>` : ''}
+          ${g.done.length     ? `<span class="wl-badge wl-done">${g.done.length} done</span>` : ''}
         </div>
       </div>
-      ${active.length   ? `<div class="wl-section"><div class="wl-section-title">🔵 Active now</div>${active.map(t => taskChip(t,'wl-t-active')).join('')}</div>` : ''}
-      ${upcoming.length ? `<div class="wl-section"><div class="wl-section-title">📅 Upcoming</div>${upcoming.map(t => taskChip(t,'wl-t-upcoming')).join('')}</div>` : ''}
-      ${backlogT.length ? `<div class="wl-section"><div class="wl-section-title">📋 Backlog</div>${backlogT.map(t => taskChip(t,'wl-t-backlog')).join('')}</div>` : ''}
-      ${!active.length && !upcoming.length && !backlogT.length ? `<div class="wl-idle">No open tasks</div>` : ''}
+      ${g.active.length   ? `<div class="wl-section"><div class="wl-section-title">🔵 Active now</div>${g.active.map(it => chip(it,'wl-t-active')).join('')}</div>` : ''}
+      ${g.upcoming.length ? `<div class="wl-section"><div class="wl-section-title">📅 Upcoming</div>${g.upcoming.map(it => chip(it,'wl-t-upcoming')).join('')}</div>` : ''}
+      ${g.backlog.length  ? `<div class="wl-section"><div class="wl-section-title">📋 Backlog</div>${g.backlog.map(it => chip(it,'wl-t-backlog')).join('')}</div>` : ''}
+      ${!g.active.length && !g.upcoming.length && !g.backlog.length ? `<div class="wl-idle">No open tasks</div>` : ''}
     </div>`;
   }).join('');
 }
