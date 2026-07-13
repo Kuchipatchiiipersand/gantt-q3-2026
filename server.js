@@ -171,6 +171,13 @@ async function initSchema() {
     await db.run("ALTER TABLE subtasks ADD COLUMN IF NOT EXISTS bar_start INTEGER DEFAULT -1").catch(() => {});
     await db.run("ALTER TABLE subtasks ADD COLUMN IF NOT EXISTS bar_end   INTEGER DEFAULT -1").catch(() => {});
     await db.run("ALTER TABLE subtasks ADD COLUMN IF NOT EXISTS owner     TEXT    DEFAULT ''").catch(() => {});
+    // Bars are now anchored to real calendar dates; the integer *bar_start/bar_end are
+    // window-relative render offsets derived client-side. See backfillDates().
+    await db.run("ALTER TABLE tasks    ADD COLUMN IF NOT EXISTS bar_start_date   TEXT").catch(() => {});
+    await db.run("ALTER TABLE tasks    ADD COLUMN IF NOT EXISTS bar_end_date     TEXT").catch(() => {});
+    await db.run("ALTER TABLE tasks    ADD COLUMN IF NOT EXISTS target_date_date TEXT").catch(() => {});
+    await db.run("ALTER TABLE subtasks ADD COLUMN IF NOT EXISTS bar_start_date   TEXT").catch(() => {});
+    await db.run("ALTER TABLE subtasks ADD COLUMN IF NOT EXISTS bar_end_date     TEXT").catch(() => {});
   } else {
     db.exec(`
       CREATE TABLE IF NOT EXISTS teams (
@@ -229,7 +236,30 @@ async function initSchema() {
     try { db.exec("ALTER TABLE subtasks ADD COLUMN bar_start INTEGER DEFAULT -1"); } catch(_) {}
     try { db.exec("ALTER TABLE subtasks ADD COLUMN bar_end   INTEGER DEFAULT -1"); } catch(_) {}
     try { db.exec("ALTER TABLE subtasks ADD COLUMN owner     TEXT    DEFAULT ''"); } catch(_) {}
+    try { db.exec("ALTER TABLE tasks    ADD COLUMN bar_start_date   TEXT"); } catch(_) {}
+    try { db.exec("ALTER TABLE tasks    ADD COLUMN bar_end_date     TEXT"); } catch(_) {}
+    try { db.exec("ALTER TABLE tasks    ADD COLUMN target_date_date TEXT"); } catch(_) {}
+    try { db.exec("ALTER TABLE subtasks ADD COLUMN bar_start_date   TEXT"); } catch(_) {}
+    try { db.exec("ALTER TABLE subtasks ADD COLUMN bar_end_date     TEXT"); } catch(_) {}
   }
+}
+
+// One-time backfill: existing rows stored bars as week indices relative to the
+// original July-1 window. Convert those to real dates so the window can move.
+const BAR_EPOCH = '2026-07-01';
+function weekEpochDate(i) {
+  const d = new Date(BAR_EPOCH + 'T00:00:00');
+  d.setDate(d.getDate() + parseInt(i) * 7);
+  // Format from local parts — toISOString() would shift the day across timezones.
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+async function backfillDates() {
+  for (const t of await db.all("SELECT id, bar_start, bar_end FROM tasks WHERE bar_start_date IS NULL AND bar_start >= 0"))
+    await db.run("UPDATE tasks SET bar_start_date=$1, bar_end_date=$2 WHERE id=$3", [weekEpochDate(t.bar_start), weekEpochDate(t.bar_end), t.id]);
+  for (const t of await db.all("SELECT id, target_date FROM tasks WHERE target_date_date IS NULL AND target_date >= 0"))
+    await db.run("UPDATE tasks SET target_date_date=$1 WHERE id=$2", [weekEpochDate(t.target_date), t.id]);
+  for (const s of await db.all("SELECT id, bar_start, bar_end FROM subtasks WHERE bar_start_date IS NULL AND bar_start >= 0"))
+    await db.run("UPDATE subtasks SET bar_start_date=$1, bar_end_date=$2 WHERE id=$3", [weekEpochDate(s.bar_start), weekEpochDate(s.bar_end), s.id]);
 }
 
 // ── Seed ───────────────────────────────────────────────────────────────────
@@ -431,8 +461,9 @@ app.get('/api/tasks', async (req, res) => {
 app.post('/api/tasks', async (req, res) => {
   try {
     const { team, owner='', initiative, outcome='', target='', metric='',
-            dependencies='', status='active', priority='medium', bar_start=-1, bar_end=-1,
-            bar_color='#4F46E5', is_blocked=0, progress=0, is_milestone=0, target_date=-1,
+            dependencies='', status='active', priority='medium',
+            bar_start_date=null, bar_end_date=null, target_date_date=null,
+            bar_color='#4F46E5', is_blocked=0, progress=0, is_milestone=0,
             focus_rank=null, remarks='' } = req.body;
     if (!team || !initiative) return res.status(400).json({ error: 'team and initiative required' });
     const max = await db.get('SELECT MAX(sort_order) AS m FROM tasks WHERE team=$1', [team]);
@@ -441,9 +472,9 @@ app.post('/api/tasks', async (req, res) => {
     // Focus ranks are unique: taking a rank clears it from its current holder
     if (fRank) await db.run('UPDATE tasks SET focus_rank=NULL WHERE focus_rank=$1', [fRank]);
     const row = await db.get(
-      `INSERT INTO tasks (team,owner,initiative,outcome,target,metric,dependencies,status,priority,bar_start,bar_end,bar_color,is_blocked,sort_order,progress,is_milestone,target_date,focus_rank,remarks)
+      `INSERT INTO tasks (team,owner,initiative,outcome,target,metric,dependencies,status,priority,bar_start_date,bar_end_date,bar_color,is_blocked,sort_order,progress,is_milestone,target_date_date,focus_rank,remarks)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19) RETURNING *`,
-      [team,owner,initiative,outcome,target,metric,dependencies,status,priority,bar_start,bar_end,bar_color,is_blocked?1:0,sort_order,parseInt(progress)||0,is_milestone?1:0,isNaN(parseInt(target_date)) ? -1 : parseInt(target_date),fRank,remarks]
+      [team,owner,initiative,outcome,target,metric,dependencies,status,priority,bar_start_date||null,bar_end_date||null,bar_color,is_blocked?1:0,sort_order,parseInt(progress)||0,is_milestone?1:0,target_date_date||null,fRank,remarks]
     );
     res.json(row);
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -452,18 +483,19 @@ app.post('/api/tasks', async (req, res) => {
 app.put('/api/tasks/:id', async (req, res) => {
   try {
     const { team, initiative, owner='', outcome='', target='', metric='', dependencies='',
-            status='active', priority='medium', bar_start=-1, bar_end=-1, bar_color='#4F46E5',
-            is_blocked=0, progress=0, is_milestone=0, target_date=-1, focus_rank=null, remarks='' } = req.body;
+            status='active', priority='medium',
+            bar_start_date=null, bar_end_date=null, target_date_date=null, bar_color='#4F46E5',
+            is_blocked=0, progress=0, is_milestone=0, focus_rank=null, remarks='' } = req.body;
     const now = process.env.DATABASE_URL ? 'NOW()' : "datetime('now')";
     const fRank = focus_rank ? parseInt(focus_rank) : null;
     // Focus ranks are unique: taking a rank clears it from its current holder
     if (fRank) await db.run('UPDATE tasks SET focus_rank=NULL WHERE focus_rank=$1 AND id<>$2', [fRank, req.params.id]);
     const row = await db.get(
       `UPDATE tasks SET team=$1,initiative=$2,owner=$3,outcome=$4,target=$5,metric=$6,dependencies=$7,
-       status=$8,priority=$9,bar_start=$10,bar_end=$11,bar_color=$12,is_blocked=$13,
-       progress=$14,is_milestone=$15,target_date=$16,focus_rank=$17,remarks=$18,updated_at=${now}
+       status=$8,priority=$9,bar_start_date=$10,bar_end_date=$11,bar_color=$12,is_blocked=$13,
+       progress=$14,is_milestone=$15,target_date_date=$16,focus_rank=$17,remarks=$18,updated_at=${now}
        WHERE id=$19 RETURNING *`,
-      [team,initiative,owner,outcome,target,metric,dependencies,status,priority,bar_start,bar_end,bar_color,is_blocked?1:0,parseInt(progress)||0,is_milestone?1:0,isNaN(parseInt(target_date)) ? -1 : parseInt(target_date),fRank,remarks,req.params.id]
+      [team,initiative,owner,outcome,target,metric,dependencies,status,priority,bar_start_date||null,bar_end_date||null,bar_color,is_blocked?1:0,parseInt(progress)||0,is_milestone?1:0,target_date_date||null,fRank,remarks,req.params.id]
     );
     res.json(row);
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -497,12 +529,10 @@ app.post('/api/tasks/:id/subtasks', async (req, res) => {
 
 app.put('/api/subtasks/:id', async (req, res) => {
   try {
-    const { title, done=0, remark='', bar_start=-1, bar_end=-1, owner='' } = req.body;
-    const bs = isNaN(parseInt(bar_start)) ? -1 : parseInt(bar_start);
-    const be = isNaN(parseInt(bar_end))   ? -1 : parseInt(bar_end);
+    const { title, done=0, remark='', bar_start_date=null, bar_end_date=null, owner='' } = req.body;
     const row = await db.get(
-      'UPDATE subtasks SET title=$1, done=$2, remark=$3, bar_start=$4, bar_end=$5, owner=$6 WHERE id=$7 RETURNING *',
-      [title, done?1:0, remark, bs, be, owner, req.params.id]
+      'UPDATE subtasks SET title=$1, done=$2, remark=$3, bar_start_date=$4, bar_end_date=$5, owner=$6 WHERE id=$7 RETURNING *',
+      [title, done?1:0, remark, bar_start_date||null, bar_end_date||null, owner, req.params.id]
     );
     res.json(row);
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -644,8 +674,8 @@ app.post('/api/jira/sync', async (req, res) => {
       const priority = mapJiraPriority(f.priority?.name);
       const owner    = f.assignee?.displayName || '';
       const team     = await getOrCreateTeam(f.project?.name || 'Jira', f.project?.key || '');
-      const bar_end  = dateToWeekIdx(f.duedate, effectiveStart, numWeeks);
-      const bar_start= dateToWeekIdx(f.customfield_10015, effectiveStart, numWeeks);
+      const bar_end_date   = f.duedate || null;                 // real dates now; window offset is client-side
+      const bar_start_date = f.customfield_10015 || f.duedate || null;
       const progress = Math.round(f.progress?.percent || 0);
       const is_blocked = status === 'blocked' ? 1 : 0;
 
@@ -663,9 +693,9 @@ app.post('/api/jira/sync', async (req, res) => {
       if (existing) {
         await db.run(
           `UPDATE tasks SET initiative=$1, owner=$2, team=$3, status=$4, priority=$5,
-           bar_start=$6, bar_end=$7, progress=$8, is_blocked=$9, outcome=$10, updated_at=${now}
+           bar_start_date=$6, bar_end_date=$7, progress=$8, is_blocked=$9, outcome=$10, updated_at=${now}
            WHERE jira_key=$11`,
-          [f.summary, owner, team.name, status, priority, bar_start, bar_end, progress, is_blocked, outcome, jiraKey]
+          [f.summary, owner, team.name, status, priority, bar_start_date, bar_end_date, progress, is_blocked, outcome, jiraKey]
         );
         updated++;
       } else {
@@ -673,10 +703,10 @@ app.post('/api/jira/sync', async (req, res) => {
         const sort_order = (parseInt(max?.m) || 0) + 1;
         await db.run(
           `INSERT INTO tasks (jira_key, team, owner, initiative, outcome, status, priority,
-           bar_start, bar_end, bar_color, is_blocked, sort_order, progress)
+           bar_start_date, bar_end_date, bar_color, is_blocked, sort_order, progress)
            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
           [jiraKey, team.name, owner, f.summary, outcome, status, priority,
-           bar_start, bar_end, team.color, is_blocked, sort_order, progress]
+           bar_start_date, bar_end_date, team.color, is_blocked, sort_order, progress]
         );
         created++;
       }
@@ -690,6 +720,6 @@ app.post('/api/jira/sync', async (req, res) => {
 });
 
 // ── Start ──────────────────────────────────────────────────────────────────
-initSchema().then(seed).then(() => {
+initSchema().then(seed).then(backfillDates).then(() => {
   app.listen(PORT, () => console.log(`Gantt app → http://localhost:${PORT}`));
 }).catch(err => { console.error('Startup error:', err); process.exit(1); });
