@@ -38,8 +38,37 @@ let MONTHS = [];
 let NW     = 0;
 
 function parseDate(str) {
-  const [y, m, d] = str.split('-').map(Number);
+  const [y, m, d] = String(str).slice(0, 10).split('-').map(Number);
   return new Date(y, m - 1, d);
+}
+
+// ── Bars are stored as real dates; render offsets are derived per window ─────
+const WK_MS = 7 * 24 * 3600 * 1000;
+function dateToWin(dateStr) {                       // real date → week offset from current window start
+  if (!dateStr) return null;
+  return Math.floor((parseDate(dateStr) - parseDate(cfg.startDate)) / WK_MS);
+}
+function winToDate(i) {                             // window week index → real date (that week's start)
+  if (i == null || i < 0) return null;
+  const d = parseDate(cfg.startDate);
+  d.setDate(d.getDate() + i * 7);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+function winRange(sd, ed) {                         // date range → clamped [start,end] columns, or [-1,-1] if off-window
+  if (!sd || !ed) return [-1, -1];
+  const si = dateToWin(sd), ei = dateToWin(ed);
+  if (ei < 0 || si >= NW) return [-1, -1];         // fully outside window → drops to Backlog
+  return [Math.max(0, si), Math.min(NW - 1, ei)];  // partial overlap clamps to the visible edge
+}
+// Recompute every task/subtask's window-relative bar indices from its stored dates.
+// Run after loading data and after the window (cfg) changes.
+function applyWindow() {
+  for (const t of allTasks) {
+    [t.bar_start, t.bar_end] = winRange(t.bar_start_date, t.bar_end_date);
+    const ti = dateToWin(t.target_date_date);
+    t.target_date = (ti != null && ti >= 0 && ti < NW) ? ti : -1;
+  }
+  for (const s of allSubtasks) [s.bar_start, s.bar_end] = winRange(s.bar_start_date, s.bar_end_date);
 }
 
 function computeWeeks() {
@@ -180,6 +209,7 @@ function saveSettings() {
   localStorage.setItem(CFG_KEY, JSON.stringify(cfg));
   applyConfigToDOM();
   computeWeeks();
+  applyWindow();          // re-derive bar offsets for the new window
   buildMonthHeaders();
   buildWeekHeaders();
   buildBarPicker();
@@ -510,6 +540,7 @@ async function loadTasks()      {
   ]);
   allTasks    = await r.json();
   allSubtasks = await rs.json();
+  applyWindow();
 }
 async function loadTeams()      { const r = await fetch(`${API}/api/teams`);      allTeams      = await r.json(); }
 async function loadDevelopers() { const r = await fetch(`${API}/api/developers`); allDevelopers = await r.json(); }
@@ -1615,11 +1646,17 @@ async function addSubtask() {
 async function updateSubtask(id, patch) {
   const s = allSubtasks.find(x => x.id == id);
   if (!s) return;
+  // Timeline patches arrive as window-relative indices — anchor them to real dates.
+  if ('bar_start' in patch || 'bar_end' in patch) {
+    const bs = patch.bar_start ?? s.bar_start ?? -1, be = patch.bar_end ?? s.bar_end ?? -1;
+    patch.bar_start_date = bs >= 0 ? winToDate(bs) : null;
+    patch.bar_end_date   = be >= 0 ? winToDate(be) : null;
+  }
   Object.assign(s, patch);
   await fetch(`${API}/api/subtasks/${id}`, {
     method: 'PUT', headers: {'Content-Type':'application/json'},
     body: JSON.stringify({ title: s.title, done: s.done, remark: s.remark || '',
-                           bar_start: s.bar_start ?? -1, bar_end: s.bar_end ?? -1,
+                           bar_start_date: s.bar_start_date ?? null, bar_end_date: s.bar_end_date ?? null,
                            owner: s.owner || '' })
   });
   renderSubtasks(s.task_id);
@@ -1743,13 +1780,13 @@ async function saveTask(e) {
     priority:     document.getElementById('f-priority').value,
     metric:       document.getElementById('f-metric').value,
     dependencies: document.getElementById('f-dependencies').value,
-    bar_start:    parseInt(document.getElementById('f-bar-start').value),
-    bar_end:      parseInt(document.getElementById('f-bar-end').value),
+    bar_start_date:   winToDate(parseInt(document.getElementById('f-bar-start').value)),
+    bar_end_date:     winToDate(parseInt(document.getElementById('f-bar-end').value)),
     bar_color:    document.getElementById('f-bar-color').value,
     is_blocked:   document.getElementById('f-status').value === 'blocked' ? 1 : 0,
     progress:     parseInt(document.getElementById('f-progress').value) || 0,
     is_milestone: document.getElementById('f-milestone').checked ? 1 : 0,
-    target_date:  parseInt(document.getElementById('f-target-date')?.value ?? '-1'),
+    target_date_date: winToDate(parseInt(document.getElementById('f-target-date')?.value ?? '-1')),
     focus_rank:   document.getElementById('f-focus-rank')?.value || null,
     remarks:      allTasks.find(x => x.id == id)?.remarks || '',
   };
